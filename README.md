@@ -1,8 +1,6 @@
-<div align="center">
-
 <img src="docs/assets/holoagent_logo_text.png" alt="HoloAgent Logo" width="500"/>
 
---
+---
 
 # HoloAgent: Unified Robot Agent Framework
 
