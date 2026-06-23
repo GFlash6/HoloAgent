@@ -1,18 +1,16 @@
 <div align="center">
 <img src="docs/assets/holoagent_logo_text.png" alt="HoloAgent Logo" width="420"/>
 
----
-
 [![Project](https://img.shields.io/badge/📖-Project-blue)](https://horizonrobotics.github.io/robot_lab/holoagent/)
 [![📄 arXiv](https://img.shields.io/badge/📄-arXiv-b31b1b)](https://arxiv.org/abs/2606.23565)
-[![Code](https://img.shields.io/badge/Code-Coming%20Soon-lightgrey)](#release-status)
+<!-- [![Code](https://img.shields.io/badge/Code-Coming%20Soon-lightgrey)](#release-status) -->
 </div>
 
 HoloAgent is a unified, agentic system for general-purpose robots, enabling multi-modal perception, mapping and localization, autonomous mobility and manipulation, and intelligent interaction with users.
 
 ## 🔥 News
-- **[2026.06.23]** HoloAgent-0 is released. Code is under preparation and will be released soon.
-- **[2025.09.18]** FSR-VLN is released as a core component of HoloAgent for fast-and-slow vision-language navigation with hierarchical multi-modal scene graphs.
+- **[2026.06]** HoloAgent-0 is released. Code is under preparation and will be released soon.
+- **[2025.09]** FSR-VLN is released as a core component of HoloAgent for fast-and-slow vision-language navigation with hierarchical multi-modal scene graphs.
 
 ## 🚀 HoloAgent-0
 > ***HoloAgent-0*** is a unified embodied agent framework for real-world robot deployment. It organizes heterogeneous robot models and controllers through three coupled layers: **Embodied AgentOS** for closed-loop execution, **3D spatial memory** for physical-world grounding, and **embodied skills** for robot action.
