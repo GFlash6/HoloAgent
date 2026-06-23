@@ -116,6 +116,7 @@ This project is built upon and inspired by several outstanding open source proje
 - [dimos](https://github.com/dimensionalOS/dimos.git)
 - [openclaw](https://github.com/openclaw/openclaw)
 - [rerun](https://github.com/rerun-io/rerun)
+- [OVO](https://github.com/tberriel/OVO)
 
 ---
 
