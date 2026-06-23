@@ -18,8 +18,8 @@ HoloAgent is a unified, agentic system for general-purpose robots, enabling mult
 HoloAgent-0 is designed for long-horizon navigation, object search, cross-robot coordination, mobile manipulation, and closed-loop execution with runtime feedback. The code will be released in this repository after it is ready.
 
 ## ✅ Release Status
+- [ ] HoloAgent-0 code update
 - [x] HoloAgent-0 project page & paper
-- [ ] HoloAgent-0 code
 - [x] FSR-VLN code
 
 ## 🧩 Components
@@ -27,6 +27,31 @@ HoloAgent-0 is designed for long-horizon navigation, object search, cross-robot 
 - **3D Spatial Memory:** Grounds robot reasoning in physical-world spatial representations for long-horizon tasks.
 - **Embodied Skills:** Connects agent decisions to executable robot navigation and manipulation skills.
 - **FSR-VLN:** Provides fast-and-slow vision-language navigation with a hierarchical multi-modal scene graph.
+
+## 🧠 Framework for Closed-Loop Robot Execution
+
+Embodied AgentOS converts natural-language instructions into executable skill graphs, schedules robot resources, monitors execution, and triggers clarification or re-planning from runtime feedback. Through a ROS2 command/status bus, it closes the loop between spatial retrieval, skill-graph planning, execution monitoring, memory updates, and feedback-driven recovery.
+
+<img src="docs/assets/holoagent_framework.png" alt="Overview of the HoloAgent-0 framework" width="900"/>
+
+## 🤖 Real-Robot Demonstrations
+
+These demonstrations show HoloAgent-0 deployed on real hardware across motion generation, object search, cross-robot coordination, and mobile manipulation. The GIFs below are compressed previews; full-resolution videos are available on the project page.
+
+| Navigation and Dance Coordination | Long-Horizon Mobile Manipulation |
+|:---:|:---:|
+| <img src="docs/assets/demos/navigation_dance.gif" alt="Navigation and dance coordination" width="420"/> | <img src="docs/assets/demos/mobile_manipulation.gif" alt="Long-horizon mobile manipulation" width="420"/> |
+| Heterogeneous robots share task context while combining mobile navigation, execution monitoring, and expressive humanoid motion. | The framework decomposes long-horizon mobile manipulation into navigation, grasping, placement, verification, and recovery steps. |
+
+| Active Exploration in a New Environment | Interactive Humanoid Command Execution |
+|:---:|:---:|
+| <img src="docs/assets/demos/active_exploration.gif" alt="Active exploration in a new environment" width="420"/> | <img src="docs/assets/demos/humanoid_command.gif" alt="Interactive humanoid command execution" width="420"/> |
+| The robot explores reachable space, expands 3D memory online, and updates the scene graph for later navigation and search. | A humanoid robot follows open-ended human commands while navigating and executing corresponding embodied actions. |
+
+| A Day with a Robot Companion | A Day in the Life of a Robot Guide |
+|:---:|:---:|
+| <img src="docs/assets/demos/robot_companion.gif" alt="A day with a robot companion" width="420"/> | <img src="docs/assets/demos/robot_guide.gif" alt="A day in the life of a robot guide" width="420"/> |
+| The robot understands language, reasons over 3D space, navigates autonomously, communicates naturally, and turns human intent into long-horizon physical action. | A robot guide provides workspace assistance, leads users to destinations, answers intent-driven requests, and adapts its route through spatial memory. |
 
 ## 🤖 FSR-VLN
 [![Project](https://img.shields.io/badge/📖-Project-blue)](https://horizonrobotics.github.io/robot_lab/fsr-vln)
