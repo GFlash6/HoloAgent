@@ -117,6 +117,7 @@ This project is built upon and inspired by several outstanding open source proje
 - [openclaw](https://github.com/openclaw/openclaw)
 - [rerun](https://github.com/rerun-io/rerun)
 - [OVO](https://github.com/tberriel/OVO)
+- [HOV-SG](https://github.com/hovsg/HOV-SG)
 
 ---
 
