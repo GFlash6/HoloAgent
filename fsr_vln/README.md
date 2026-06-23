@@ -1,6 +1,8 @@
 # FSR-VLN
-[![Projcet](https://img.shields.io/badge/📖-Project-blue)](https://horizonrobotics.github.io/robot_lab/fsr-vln)
+[![Project](https://img.shields.io/badge/📖-Project-blue)](https://horizonrobotics.github.io/robot_lab/fsr-vln)
 [![📄 arXiv](https://img.shields.io/badge/📄-arXiv-b31b1b)](https://arxiv.org/abs/2509.13733)
+[![🤗 Dataset](https://img.shields.io/badge/🤗-Dataset-yellow)](https://huggingface.co/datasets/HorizonRobotics/fsrvln_datasets)
+[![Docker](https://img.shields.io/badge/Docker-Image-2496ED?logo=docker&logoColor=white)](https://github.com/users/zhaoyu199201/packages/container/package/holoagent)
 [![中文介绍](https://img.shields.io/badge/中文介绍-07C160?logo=wechat&logoColor=white)](https://mp.weixin.qq.com/s/HqnBlTNqOL3Z4Kg8tLHCSw)
 
 
@@ -49,7 +51,7 @@ wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth -O che
 ## 🖼️ Dataset Preparation
 FSR-VLN takes posed RGB-D sequences as input. In order to produce hierarchical multi-story scenes we make use of the Horizon RGBD-datasets 
 
-- Download the [Horizon RGBD-Datasets](https://huggingface.co/datasets/HorizonRobotics/fsrvln_datasets/tree/main) dataset.
+- Download the [Horizon RGBD-Datasets](https://huggingface.co/datasets/HorizonRobotics/fsrvln_datasets) dataset from Hugging Face.
 ```bash
 # download and unzip dataset to this directory
 mkdir -p /mnt/holoagent/fsrvln/rgbd_datasets/
