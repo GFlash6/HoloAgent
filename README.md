@@ -12,10 +12,10 @@ HoloAgent is a unified embodied-agent framework for general-purpose robots, inte
 - **[2026.06]** HoloAgent-0 is released. Code is under preparation and will be released soon.
 - **[2025.09]** FSR-VLN is released for fast-and-slow vision-language navigation.
 
-## 🚀 HoloAgent-0
+<!-- ## 🚀 HoloAgent-0
 > ***HoloAgent-0*** connects Embodied AgentOS, 3D spatial memory, and embodied skills for real-world robot deployment.
 
-It targets long-horizon navigation, object search, cross-robot coordination, mobile manipulation, and runtime-feedback-driven recovery. Code will be released in this repository after it is ready.
+It targets long-horizon navigation, object search, cross-robot coordination, mobile manipulation, and runtime-feedback-driven recovery. Code will be released in this repository after it is ready. -->
 
 ## ✅ Release Status
 - [ ] HoloAgent-0 code update
@@ -111,13 +111,7 @@ If you find our project useful, please consider citing it:
 
 ## 🙏 Acknowledgements
 
-This project is built upon and inspired by several outstanding open source projects:
-
-- [dimos](https://github.com/dimensionalOS/dimos.git)
-- [openclaw](https://github.com/openclaw/openclaw)
-- [rerun](https://github.com/rerun-io/rerun)
-- [OVO](https://github.com/tberriel/OVO)
-- [HOV-SG](https://github.com/hovsg/HOV-SG)
+This project is built upon and inspired by several outstanding open source projects: [OVO](https://github.com/tberriel/OVO)、[HOV-SG](https://github.com/hovsg/HOV-SG)、[rerun](https://github.com/rerun-io/rerun)、[dimos](https://github.com/dimensionalOS/dimos.git)、[openclaw](https://github.com/openclaw/openclaw).
 
 ---
 
