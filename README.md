@@ -4,6 +4,7 @@
 [![Project](https://img.shields.io/badge/📖-Project-blue)](https://horizonrobotics.github.io/robot_lab/holoagent/)
 [![📄 arXiv](https://img.shields.io/badge/📄-arXiv-b31b1b)](https://arxiv.org/abs/2606.23565)
 [![🤗 Dataset](https://img.shields.io/badge/🤗-Dataset-yellow)](https://huggingface.co/datasets/HorizonRobotics/fsrvln_datasets)
+[![Docker](https://img.shields.io/badge/Docker-ghcr.io/zhaoyu199201/holoagent:latest-2496ED?logo=docker&logoColor=white)](https://github.com/users/zhaoyu199201/packages/container/package/holoagent)
 <!-- [![Code](https://img.shields.io/badge/Code-Coming%20Soon-lightgrey)](#release-status) -->
 </div>
 
