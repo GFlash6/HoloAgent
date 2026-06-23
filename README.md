@@ -20,8 +20,7 @@ HoloAgent is a unified, agentic system for general-purpose robots, enabling mult
 HoloAgent-0 is designed for long-horizon navigation, object search, cross-robot coordination, mobile manipulation, and closed-loop execution with runtime feedback. The code will be released in this repository after it is ready.
 
 ## ✅ Release Status
-- [x] HoloAgent-0 project page
-- [x] HoloAgent-0 paper
+- [x] HoloAgent-0 project page & paper
 - [ ] HoloAgent-0 code
 - [x] FSR-VLN code
 
@@ -90,6 +89,9 @@ If you find our project useful, please consider citing it:
 ## 🙏 Acknowledgements
 
 This project is built upon and inspired by several outstanding open source projects:
+
+- [dimos](https://github.com/dimensionalOS/dimos.git)
+- [openclaw](https://github.com/openclaw/openclaw)
 
 ---
 
