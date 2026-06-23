@@ -2,7 +2,7 @@
 [![Project](https://img.shields.io/badge/📖-Project-blue)](https://horizonrobotics.github.io/robot_lab/fsr-vln)
 [![📄 arXiv](https://img.shields.io/badge/📄-arXiv-b31b1b)](https://arxiv.org/abs/2509.13733)
 [![🤗 Dataset](https://img.shields.io/badge/🤗-Dataset-yellow)](https://huggingface.co/datasets/HorizonRobotics/fsrvln_datasets)
-[![Docker](https://img.shields.io/badge/Docker-ghcr.io/zhaoyu199201/holoagent:latest-2496ED?logo=docker&logoColor=white)](https://github.com/users/zhaoyu199201/packages/container/package/holoagent)
+[![Docker](https://img.shields.io/badge/Docker-Image-2496ED?logo=docker&logoColor=white)](https://github.com/users/zhaoyu199201/packages/container/package/holoagent)
 [![中文介绍](https://img.shields.io/badge/中文介绍-07C160?logo=wechat&logoColor=white)](https://mp.weixin.qq.com/s/HqnBlTNqOL3Z4Kg8tLHCSw)
 
 
