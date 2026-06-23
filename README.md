@@ -11,17 +11,13 @@
 HoloAgent is a unified, agentic system for general-purpose robots, enabling multi-modal perception, mapping and localization, autonomous mobility and manipulation, and intelligent interaction with users.
 
 ## 🔥 News
-- **[2026.06.23]** HoloAgent-0 is released with the [project page](https://horizonrobotics.github.io/robot_lab/holoagent/) and [paper](https://arxiv.org/abs/2606.23565). Code is under preparation and will be released soon.
+- **[2026.06.23]** HoloAgent-0 is released. Code is under preparation and will be released soon.
 - **[2025.09.18]** FSR-VLN is released as a core component of HoloAgent for fast-and-slow vision-language navigation with hierarchical multi-modal scene graphs.
 
 ## 🚀 HoloAgent-0
-[![Project](https://img.shields.io/badge/📖-Project-blue)](https://horizonrobotics.github.io/robot_lab/holoagent/)
-[![📄 arXiv](https://img.shields.io/badge/📄-arXiv-b31b1b)](https://arxiv.org/abs/2606.23565)
-[![Code](https://img.shields.io/badge/Code-Coming%20Soon-lightgrey)](#release-status)
-
 > ***HoloAgent-0*** is a unified embodied agent framework for real-world robot deployment. It organizes heterogeneous robot models and controllers through three coupled layers: **Embodied AgentOS** for closed-loop execution, **3D spatial memory** for physical-world grounding, and **embodied skills** for robot action.
 
-HoloAgent-0 is designed for long-horizon navigation, object search, cross-robot coordination, mobile manipulation, and closed-loop execution with runtime feedback. The project page and paper are now available, and the code will be released in this repository after it is ready.
+HoloAgent-0 is designed for long-horizon navigation, object search, cross-robot coordination, mobile manipulation, and closed-loop execution with runtime feedback. The code will be released in this repository after it is ready.
 
 ## ✅ Release Status
 - [x] HoloAgent-0 project page
