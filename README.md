@@ -3,22 +3,37 @@
 
 ---
 
-# HoloAgent: Unified Robot Agent Framework
-
 [![Project](https://img.shields.io/badge/📖-Project-blue)](https://horizonrobotics.github.io/robot_lab/holoagent/)
 [![📄 arXiv](https://img.shields.io/badge/📄-arXiv-b31b1b)](https://arxiv.org/abs/2606.23565)
+[![Code](https://img.shields.io/badge/Code-Coming%20Soon-lightgrey)](#release-status)
 </div>
 
-A unified, agentic system for general-purpose robots, enabling multi-modal perception, mapping and localization, and autonomous mobility and manipulation, with intelligent interaction with users.
+HoloAgent is a unified, agentic system for general-purpose robots, enabling multi-modal perception, mapping and localization, autonomous mobility and manipulation, and intelligent interaction with users.
+
+## 🔥 News
+- **[2026.06.23]** HoloAgent-0 is released with the [project page](https://horizonrobotics.github.io/robot_lab/holoagent/) and [paper](https://arxiv.org/abs/2606.23565). Code is under preparation and will be released soon.
+- **[2025.09.18]** FSR-VLN is released as a core component of HoloAgent for fast-and-slow vision-language navigation with hierarchical multi-modal scene graphs.
 
 ## 🚀 HoloAgent-0
 [![Project](https://img.shields.io/badge/📖-Project-blue)](https://horizonrobotics.github.io/robot_lab/holoagent/)
 [![📄 arXiv](https://img.shields.io/badge/📄-arXiv-b31b1b)](https://arxiv.org/abs/2606.23565)
-[![Code](https://img.shields.io/badge/Code-Coming%20Soon-lightgrey)](#checklist)
+[![Code](https://img.shields.io/badge/Code-Coming%20Soon-lightgrey)](#release-status)
 
-> ***HoloAgent-0*** is a unified embodied agent framework for real-world robot deployment. It organizes heterogeneous robot models and controllers through three coupled layers: **Embodied AgentOS** for closed-loop execution, **3D spatial memory** for physical-world grounding, and **embodied skills** for robot action. The framework supports long-horizon navigation, object search, cross-robot coordination, mobile manipulation, and closed-loop execution with runtime feedback.
+> ***HoloAgent-0*** is a unified embodied agent framework for real-world robot deployment. It organizes heterogeneous robot models and controllers through three coupled layers: **Embodied AgentOS** for closed-loop execution, **3D spatial memory** for physical-world grounding, and **embodied skills** for robot action.
 
-The HoloAgent-0 project page and paper are now available. The code is not ready yet and will be released in this repository in a future update.
+HoloAgent-0 is designed for long-horizon navigation, object search, cross-robot coordination, mobile manipulation, and closed-loop execution with runtime feedback. The project page and paper are now available, and the code will be released in this repository after it is ready.
+
+## ✅ Release Status
+- [x] HoloAgent-0 project page
+- [x] HoloAgent-0 paper
+- [ ] HoloAgent-0 code
+- [x] FSR-VLN code
+
+## 🧩 Components
+- **Embodied AgentOS:** Coordinates high-level task planning, runtime feedback, and closed-loop robot execution.
+- **3D Spatial Memory:** Grounds robot reasoning in physical-world spatial representations for long-horizon tasks.
+- **Embodied Skills:** Connects agent decisions to executable robot navigation and manipulation skills.
+- **FSR-VLN:** Provides fast-and-slow vision-language navigation with a hierarchical multi-modal scene graph.
 
 ## 🤖 FSR-VLN
 [![Project](https://img.shields.io/badge/📖-Project-blue)](https://horizonrobotics.github.io/robot_lab/fsr-vln)
@@ -28,14 +43,11 @@ The HoloAgent-0 project page and paper are now available. The code is not ready 
 
 <img src="docs/assets/FSR_VLN_framework.png" alt="Overall Framework" width="700"/>
 
-## Checklist
-- [x] Release the project page of HoloAgent-0.
-- [x] Release the paper of HoloAgent-0.
-- [ ] Release the code of HoloAgent-0.
-- [x] Release the code of FSR-VLN.
 
+## 🏗 Getting Started
 
-## 🏗 Pipeline
+The current repository includes the FSR-VLN codebase and navigation-agent setup. HoloAgent-0 code will be added in a future release.
+
 ### 1. Semantic Mapping and Retrieval Pipeline
 - **Task:** Implement the semantic mapping and retrieval system based on the instructions in `fsr_vln/README.md`.
 - **Steps:**
