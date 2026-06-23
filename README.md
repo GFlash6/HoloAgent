@@ -91,6 +91,10 @@ If you find our project useful, please consider citing it:
 }
 ```
 
+## 🙏 Acknowledgements
+
+This project is built upon and inspired by several outstanding open source projects:
+
 ---
 
 ## ⚖️ License
