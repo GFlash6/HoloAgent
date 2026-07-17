@@ -1,0 +1,18 @@
+main:
+  device: cuda
+  use_gpt: false
+  spatial_reasoning_method: auto_region # auto_region, human_assign, 
+  fast_slow_method: fast_match # slow_reasoning
+  depth_cut: 10.0
+  dataset: horizon 
+  scene_id: icra_sh3f
+  dataset_path: /mnt/holoagent/fsrvln/rgbd_datasets/
+  graph_path: ${HOLOAGENT_DATA_ROOT}/VLN/instance_tracking/data/output/G1/holoagent_mapping-g1/sh_3f/graph_20260423122102
+  save_path:  ${HOLOAGENT_DATA_ROOT}/VLN/instance_tracking/data/output/G1/holoagent_mapping-g1-eval
+  long_query:
+    spec: [obj, room, floor] # [obj, room], [obj, floor], [obj].
+models:
+  clip:
+    type: SigLIP-384 #ViT-B-32 #ViT-H-14
+    checkpoint: hf-hub:timm/ViT-SO400M-14-SigLIP-384 
+

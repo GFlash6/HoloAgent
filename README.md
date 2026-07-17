@@ -11,6 +11,7 @@
 HoloAgent is a unified embodied-agent framework for general-purpose robots, integrating closed-loop execution, 3D spatial memory, and robot skills for real-world tasks.
 
 ## 🔥 News
+- **[2026.12 (expected)]** HoloAgent-1 is expected by the end of the year.
 - **[2026.06]** HoloAgent-0 is released. Code is under preparation and will be released soon.
 - **[2025.09]** FSR-VLN is released for fast-and-slow vision-language navigation.
 
@@ -20,7 +21,16 @@ HoloAgent is a unified embodied-agent framework for general-purpose robots, inte
 It targets long-horizon navigation, object search, cross-robot coordination, mobile manipulation, and runtime-feedback-driven recovery. Code will be released in this repository after it is ready. -->
 
 ## ✅ Release Status
-- [ ] HoloAgent-0 code update
+- [ ] HoloAgent-1 code update
+  - [ ] HoloBrain for general-purpose dexterous manipulation
+  - [ ] HoloMotion for whole-body mobile manipulation
+  - [ ] Active exploration Agent-Loop
+  - [ ] Vision-only autonomy for mapping, localization, navigation, and obstacle avoidance
+- [x] HoloAgent-0 code update
+  - [x] FSR-VLN semantic mapping acceleration with OVO-Mapping replacing HOV-SG
+  - [x] Chatbot speech interaction upgraded with Doubao LLM
+  - [x] AgentOS Harness adapted to OpenClaw
+  - [x] Secure isolation for background processes and skill triggering via dimos-inspired Skill/Blueprint mechanisms with Harness
 - [x] HoloAgent-0 project page & paper
 - [x] FSR-VLN code
 
@@ -66,23 +76,11 @@ Compressed previews from real-hardware deployments. Full-resolution videos are a
 
 ## 🏗 Getting Started
 
-The current repository includes FSR-VLN and navigation-agent setup. HoloAgent-0 code will be added in a future release.
+For system introduction, repository layout, dependency preparation, layered build instructions, runtime configuration, and deployment notes, refer to:
 
-### 1. Semantic Mapping and Retrieval Pipeline
-- **Task:** Implement the semantic mapping and retrieval system based on the instructions in `fsr_vln/README.md`.
-- **Steps:**
-    1.  Download the necessary pre-trained model checkpoints.
-    2.  Download and configure the required datasets.
-    3.  Set up the environment and dependencies as specified.
-    4.  Run the complete pipeline to verify its functionality for semantic mapping and visual place retrieval.
+- [`docs/user_guide/Intruduction.md`](docs/user_guide/Intruduction.md)
 
-### 2. Navigation Agent Setup and Execution
-- **Task:** Set up and test the navigation agent according to `nav_agent/README.md`.
-- **Steps:**
-    1.  Install all required dependencies for the navigation environment.
-    2.  Configure the necessary parameters and environment settings.
-    3.  Execute the navigation agent to ensure it runs successfully and performs its intended tasks.
-
+This guide is the recommended starting point for setting up the current agentic robot system repository.
 
 ## 📚 Publications & Citation
 

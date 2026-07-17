@@ -1,0 +1,16 @@
+[project]
+name = "g1"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "aiohttp>=3.10.11",
+    "loguru>=0.7.3",
+    "numpy>=1.24.4",
+    "openai>=2.2.0",
+    "pyaudio>=0.2.14",
+    "pydub>=0.25.1",
+    "websockets>=13.1",
+]
+

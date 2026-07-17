@@ -1,0 +1,22 @@
+# signals_common.yaml — robot 级通用 signal 注册表（hexfellow）
+# 包含跨 map 不变的 nav command
+#
+# Schema:
+#   signals.<name>:
+#     description:  给 LLM 的语义说明
+#     chat_id:      int (可选) — 播报音频 chat_id
+#     action:
+#       type:       waypoint | nav_command
+#       command:    (nav_command 专用) cancel
+#       points:     (waypoint 专用) list of {x, y, yaw, name}
+#
+# map 级 signals.yaml 中定义 waypoint，可增量覆盖这里的任何 key。
+
+robot: hexfellow
+
+signals:
+  stop:
+    description: "停止当前导航任务"
+    action:
+      type: nav_command
+      command: cancel

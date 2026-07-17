@@ -1,0 +1,35 @@
+session_datetime: '20260713_125214'
+session_dir: /workspace/D-Robotics/agentic_robot_system/agentic_robot/agentOS/sandbox_test/output/single_robot_20260713_125214
+mode: single_robot
+dry_run: true
+created_at: '2026-07-13T12:52:14.051333'
+status: dry_run_completed
+validation_conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+execution_conclusion: 当前为 dry-run，仅完成虚拟执行验证，未触发真实物理执行
+events:
+- timestamp: '2026-07-13T12:52:14.053623'
+  event_type: instruction_received
+  payload:
+    instruction: 11机器先去点位1，到了以后高挥手打招呼，然后去点位2和用户击掌，最后回到点位3并转身挥手再见
+- timestamp: '2026-07-13T12:52:22.704205'
+  event_type: dag_generated
+  payload:
+    node_count: 6
+    description: 11 机器串行执行导航、打招呼、导航、击掌、导航、转身挥手再见
+- timestamp: '2026-07-13T12:52:22.710716'
+  event_type: virtual_validation_completed
+  payload:
+    status: passed
+    conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+- timestamp: '2026-07-13T12:52:22.714583'
+  event_type: physical_execution_skipped
+  payload:
+    recorded_at: '2026-07-13T12:52:22.712542'
+    status: skipped
+    conclusion: 当前为 dry-run，仅完成虚拟执行验证，未触发真实物理执行
+    executed_nodes: []
+subtasks: []
+artifacts:
+  dag_plan: /workspace/D-Robotics/agentic_robot_system/agentic_robot/agentOS/sandbox_test/output/single_robot_20260713_125214/dag_plan.yaml
+  virtual_validation: /workspace/D-Robotics/agentic_robot_system/agentic_robot/agentOS/sandbox_test/output/single_robot_20260713_125214/virtual_validation.yaml
+  execution_result: /workspace/D-Robotics/agentic_robot_system/agentic_robot/agentOS/sandbox_test/output/single_robot_20260713_125214/execution_result.yaml

@@ -1,0 +1,97 @@
+# G1 Perception Configuration
+# YOLO-E Open-Vocabulary 3D Detection Configuration
+
+# Model Configuration
+model:
+  # Model directory (relative to workspace or absolute path)
+  model_dir: "models_yoloe"
+  
+  # Model file names based on prompt mode:
+  # LRPC (Label-Relevant Prompt-Free Classification): Zero-shot open-vocabulary
+  # PROMPT: Text/Visual prompt mode
+  model_name_lrpc: "yoloe-11l-seg-pf.pt"
+  model_name_prompt: "yoloe-11l-seg.pt"
+  
+  # Prompt mode: "lrpc" or "prompt"
+  prompt_mode: "lrpc"
+  
+  # Open-vocabulary classes for PROMPT mode
+  # Can be any text description of objects
+  text_prompts:
+    - "person"
+    - "chair"
+    - "table"
+    - "bottle"
+    - "cup"
+    - "laptop"
+    - "phone"
+    - "book"
+    - "bag"
+    - "box"
+    - "cup"
+    - "monitor"
+    - "keyboard"
+    - "mouse"
+
+# Device Configuration
+device: "cpu"  # "cuda", "cpu", or "auto"
+
+# GPU Bridge Configuration (use Redis to forward to Python 3.8 GPU environment)
+use_gpu_bridge: true
+
+# Detection Parameters
+detection:
+  # Confidence threshold (higher = fewer false positives)
+  conf_threshold: 0.7
+  
+  # IOU threshold for NMS (higher = more selective)
+  iou_threshold: 0.5
+  
+  # Maximum bounding box area ratio relative to image
+  max_area_ratio: 0.25
+  
+  # Classes to exclude (by ID)
+  exclude_class_ids: []
+
+# ROS Topic Configuration
+topics:
+  # ZED Camera Input Topics
+  rgb_image: "/zed/zed_node/rgb/color/rect/image"
+  rgb_camera_info: "/zed/zed_node/rgb/color/rect/image/camera_info"
+  depth_image: "/zed/zed_node/depth/depth_registered"
+  depth_camera_info: "/zed/zed_node/depth/depth_registered/camera_info"
+  pose: "/zed/zed_node/pose"
+  
+  # Output Topics
+  detections_2d_image: "/perception/detections_2d/image"
+  detections_2d_array: "/perception/detections_2d/array"
+  detections_3d_pointcloud: "/perception/detections_3d/pointcloud"
+  
+  # Frame IDs - use zed_left_camera_frame to match ZED's point_cloud output
+  camera_frame: "zed_left_camera_frame_optical"
+  world_frame: "world"
+
+# Synchronization Parameters
+sync:
+  queue_size: 10
+  slop_seconds: 0.1
+
+# Visualization
+visualization:
+  # Draw bounding boxes
+  draw_bboxes: true
+  # Draw class labels
+  draw_labels: true
+  # Draw confidence scores
+  draw_confidence: true
+  # Point cloud color scheme: "class" or "depth"
+  pointcloud_color: "class"
+
+# 3D Detection Parameters
+detection_3d:
+  # Minimum number of valid depth points
+  min_points: 10
+  # Outlier filtering (standard deviations)
+  outlier_threshold: 3.0
+  # Maximum detection range (meters)
+  max_range: 10.0

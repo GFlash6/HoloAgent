@@ -1,0 +1,77 @@
+recorded_at: '2026-07-13T12:52:22.705812'
+status: passed
+conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+checks:
+- name: deps_exist::r11_nav_p1
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r11_wave_greet
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r11_nav_p2
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r11_high_five
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r11_nav_p3
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r11_turn_back_wave_bye
+  passed: true
+  missing_dependencies: []
+- name: single_robot_serialization::r11_nav_p1
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r11_wave_greet
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r11_nav_p2
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r11_high_five
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r11_nav_p3
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r11_turn_back_wave_bye
+  passed: true
+  conflicting_nodes: []
+virtual_execution_trace:
+- step: 1
+  parallel_nodes:
+  - id: r11_nav_p1
+    robot_id: 11
+    skill: navigation
+    target: one_point_1
+- step: 2
+  parallel_nodes:
+  - id: r11_wave_greet
+    robot_id: 11
+    skill: arm
+    target: wave_above_head
+- step: 3
+  parallel_nodes:
+  - id: r11_nav_p2
+    robot_id: 11
+    skill: navigation
+    target: one_point_2
+- step: 4
+  parallel_nodes:
+  - id: r11_high_five
+    robot_id: 11
+    skill: arm
+    target: high_five
+- step: 5
+  parallel_nodes:
+  - id: r11_nav_p3
+    robot_id: 11
+    skill: navigation
+    target: one_point_3
+- step: 6
+  parallel_nodes:
+  - id: r11_turn_back_wave_bye
+    robot_id: 11
+    skill: arm
+    target: turn_back_wave

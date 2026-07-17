@@ -1,0 +1,93 @@
+recorded_at: '2026-07-13T12:57:12.593058'
+status: passed
+conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+checks:
+- name: deps_exist::r11_nav_p1
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r12_nav_p1
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r11_wave_greet
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r12_high_five
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r11_wave_bye
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r12_wave_bye
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r11_nav_p2
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r12_nav_p2
+  passed: true
+  missing_dependencies: []
+- name: single_robot_serialization::r11_nav_p1
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r12_nav_p1
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r11_wave_greet
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r12_high_five
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r11_wave_bye
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r12_wave_bye
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r11_nav_p2
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r12_nav_p2
+  passed: true
+  conflicting_nodes: []
+virtual_execution_trace:
+- step: 1
+  parallel_nodes:
+  - id: r11_nav_p1
+    robot_id: 11
+    skill: navigation
+    target: one_point_1
+  - id: r12_nav_p1
+    robot_id: 12
+    skill: navigation
+    target: one_point_1
+- step: 2
+  parallel_nodes:
+  - id: r11_wave_greet
+    robot_id: 11
+    skill: arm
+    target: wave_above_head
+  - id: r12_high_five
+    robot_id: 12
+    skill: arm
+    target: high_five
+- step: 3
+  parallel_nodes:
+  - id: r11_wave_bye
+    robot_id: 11
+    skill: arm
+    target: wave_under_head
+  - id: r12_wave_bye
+    robot_id: 12
+    skill: arm
+    target: wave_under_head
+- step: 4
+  parallel_nodes:
+  - id: r11_nav_p2
+    robot_id: 11
+    skill: navigation
+    target: one_point_2
+  - id: r12_nav_p2
+    robot_id: 12
+    skill: navigation
+    target: one_point_2

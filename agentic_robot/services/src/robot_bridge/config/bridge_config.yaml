@@ -1,0 +1,103 @@
+# bridge_config.yaml — robot_bridge 端点映射配置
+#
+# 每个 endpoint 描述一条 HTTP → ROS 映射，或一条 ROS → HTTP 反向映射。
+#
+# HTTP → ROS (endpoints[])
+#   http:
+#     method: POST | GET
+#     path:   URL 路径（支持 {var} 路径参数）
+#   ros:
+#     type:       topic | service | action
+#     name:       ROS topic/service/action 名
+#     msg_type:   消息/服务类型（格式 "package/Type"）
+#     body:       消息字段映射（key=ROS字段, value=HTTP body JSON key 或 "{path_var}"）
+#                 特殊值 "@path.<var>" 代表取 URL 路径参数
+#
+# ROS → HTTP (reverse[])
+#   ros_sub:    订阅的 ROS topic 名
+#   msg_type:   消息类型
+#   http_post:  回调的 HTTP URL（支持环境变量 ${CONTROL_URL}）
+#   payload:    POST body 模板（支持 ${ROBOT_ID} 和 ${msg.<field>} 占位符）
+
+# 本机 robot ID（整数），对应原 fastapi_robot.py ROBOT_ID
+# 如果使用robot_bridge,则不用在每台机器上执行fastapi_robot.py
+robot_id: ${ROBOT_ID:-13}
+
+# 控制中心地址（对应原 CONTROL_URL），用于反向回调
+control_url: ${CONTROL_URL:-http://192.168.124.103:8080}
+
+# HTTP server 监听配置
+http:
+  host: "0.0.0.0"
+  port: 8000
+
+endpoints:
+  # ---------- navigation signal ----------
+  - http:
+      method: POST
+      path: /api/navigation/{name}
+    ros:
+      type: topic
+      name: chat_signal_pub
+      msg_type: std_msgs/String
+      body:
+        data: "@path.name"
+    description: "触发命名 signal（one_point_1 / stop / ...），直接转发 URL path 参数"
+
+  # ---------- relative nav ----------
+  - http:
+      method: POST
+      path: /api/relative_nav
+    ros:
+      type: topic
+      name: /relative_nav
+      msg_type: std_msgs/String
+      body:
+        data: "cmd"
+    description: "相对导航：POST body {cmd: '1.0,0.0,90'}"
+
+  # ---------- semantic nav ----------
+  - http:
+      method: POST
+      path: /api/semantic_nav
+    ros:
+      type: topic
+      name: /chat_loc_pub
+      msg_type: std_msgs/String
+      body:
+        data: "cmd"
+    description: "语义导航：POST body {cmd: 'floor,room,object'}"
+
+  # ---------- arm skill ----------
+  - http:
+      method: POST
+      path: /api/arm/{skill}
+    ros:
+      type: topic
+      name: arm_signal_pub
+      msg_type: std_msgs/String
+      body:
+        data: "@path.skill"
+    description: "触发 arm skill（wave_above_head / wave_under_head / ...）"
+
+  # ---------- cancel nav ----------
+  - http:
+      method: POST
+      path: /api/navigation/stop
+    ros:
+      type: topic
+      name: chat_signal_pub
+      msg_type: std_msgs/String
+      body:
+        data: "stop"
+    description: "停止当前导航（保持与原 /api/navigation/stop 兼容）"
+
+reverse:
+  # nav_executor 到点通知 → 上报控制中心
+  - ros_sub: waypoint_reached
+    msg_type: std_msgs/String
+    http_post: "${control_url}/robot_reached"
+    payload:
+      robot_id: "${robot_id}"
+      waypoint_name: "${msg.data}"
+    description: "到点后 POST 到控制中心（对应原 fastapi_robot.py waypoint_reached_callback）"

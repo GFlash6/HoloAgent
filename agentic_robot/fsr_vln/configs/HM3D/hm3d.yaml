@@ -1,0 +1,12 @@
+dataset_name: "hm3d"
+scenes: ["00824-Dd4bFSTQ8gi"]
+cam: 
+  H: 480 
+  W: 640
+  fx: 320.0
+  fy: 320.0
+  cx: 320.0
+  cy: 240.0
+  depth_scale: 1000.
+  depth_th: 6. # in m
+

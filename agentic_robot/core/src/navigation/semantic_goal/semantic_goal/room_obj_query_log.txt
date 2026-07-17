@@ -1,0 +1,1 @@
+query: Find the fire extinguisher -- floor unknown, room unknown, fire extinguisher

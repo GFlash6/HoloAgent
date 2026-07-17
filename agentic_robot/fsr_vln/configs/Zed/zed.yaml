@@ -1,0 +1,12 @@
+dataset_name: "zed"
+scenes: ["g1_zed"]
+cam: 
+  H: 360 
+  W: 640
+  fx: 263.3348388671875
+  fy: 263.3348388671875  
+  cx: 329.8558349609375
+  cy: 180.2921600341797
+  depth_scale: 1.0
+  depth_th: 6. # in m
+  # crop_edge: -1

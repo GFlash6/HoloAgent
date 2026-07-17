@@ -1,0 +1,16 @@
+main:
+  device: cuda
+  use_gpt: false
+  dataset: horizon #scannet #horizon # hm3dsem #replica #iphone #horizon #replica #horizon #replica # scannet, replica
+  scene_id: sh3f_s9000  #rosbag2_2025_09_01-17_28_01 #rosbag2_2025_08_07-17_31_57 #rosbag2_2025_06_24-12_11_07_fast_livo # #rosbag2_2025_06_24-12_11_07_fast_livo #rosbag2_2025_07_18-19_16_33 #rosbag2_2025_06_24-12_11_07_fast_livo #rosbag2_2025_04_08-21_29_56 #rosbag2_2025_04_08-21_33_17 #demo_iphone_3 #ic4_loop #room0 #scene0518_00 #office0 # scene0011_00
+  dataset_path: ${oc.env:HOLOAGENT_DATA_ROOT}/VLN/instance_tracking/data/input/datasets/Pocket/decoded_scans/sh3f_s9000
+  graph_path: ${oc.env:HOLOAGENT_DATA_ROOT}/VLN/instance_tracking/data/output/Pocket/holoagent_mapping-pocket/sh3f_s9000/graph_20260429132044
+
+  save_path:  ${oc.env:HOLOAGENT_DATA_ROOT}/VLN/instance_tracking/data/output/Pocket/holoagent_mapping-pocket
+
+  long_query:
+    spec: [obj, room, floor] # [obj, room, floor], [obj, room], [obj, floor], [obj].
+models:
+  clip:
+    type: SigLIP-384 #ViT-B-32 #ViT-H-14
+    checkpoint: hf-hub:timm/ViT-SO400M-14-SigLIP-384 

@@ -1,0 +1,947 @@
+from typing import Any, Dict, List, Tuple
+from collections import deque
+import os
+import pprint
+import time
+
+import numpy as np
+import torch
+
+from ..utils import geometry_utils, instance_utils
+from .clip_generator import CLIPGenerator
+from .instance3d import Instance3D
+from .logger import Logger
+from .mask_generator import MaskGenerator
+
+
+class ObjDetectTrack:
+    """
+    Initialize CLIP and SAM backbones, with a given configuration, and logger.
+
+    Args:
+        - config (Dict[str, Any]): Configuration dictionary specifying hyperparameters and operational settings.
+        - logger (Logger): Object for logging the tracking process.
+        - dataset_name (str, optional): Name of the dataset. Default is None.
+        - scene_name (str, optional): Name of current scene required to load precomputed masks, or save them if precomputing. Default is None.
+        - cam_intrinsics (torch.Tensor, optional): Camera intrinsic matrix. Required for scene reconstruction but not for evaluation. Default is None.
+        - eval (bool, optional): If True SAM backbone is not loaded and the Camera intrinsic matrix is not required. Default is False.
+        - device (str, optional): Device to run CLIP model and SAM. Must be either 'cpu' or 'cuda'. Default is 'cuda'.
+    """
+
+    def __init__(self,
+                 config: Dict[str,
+                              Any],
+                 logger: Logger,
+                 dataset_name: str | None = None,
+                 scene_name: str | None = None,
+                 cam_intrinsics: torch.Tensor | None = None,
+                 eval: bool = False,
+                 device="cuda",
+                 mask_generator=None) -> None:
+        if not eval:
+            assert cam_intrinsics is not None, "Camera intrinsics required for reconstruction!"
+
+        config["sam"]["multi_crop"] = False if config["clip"]["embed_type"] == "vanilla" else True
+        self.cam_intrinsics = cam_intrinsics
+        self.config = config
+        self.logger = logger
+        self.debug_info = config.get("debug_info", False)
+        self.device = device
+        self.n_top_views = config["clip"].get("k_top_views", 0)
+        Instance3D.n_top_kf = self.n_top_views
+        self.dataset_name = dataset_name
+        # Thread safety lock for objects dictionary (protects against
+        # concurrent modifications during loop closure)
+        import threading
+        self.objects_lock = threading.RLock()
+
+        self.clip_generator = CLIPGenerator(config["clip"], device=device)
+        # self.logger.info("Loaded CLIP Generator Model.")
+        print("Loaded CLIP Generator Model.")
+
+        # Use shared mask_generator if provided, otherwise create new one
+        if not eval:
+            if mask_generator is not None:
+                print("Using shared MaskGenerator instance (memory optimized).")
+                self.mask_generator = mask_generator
+            else:
+                print("Creating new MaskGenerator instance.")
+                self.mask_generator = MaskGenerator(
+                    config["sam"], scene_name, device=device)
+        else:
+            self.mask_generator = None
+
+        self.keyframes = {
+            "ins_descriptors": dict(),
+            "frame_id": list(),
+            "ins_maps": list(),
+        }
+        self.keyframes_queue = deque([])
+        self.objects = dict()
+        self._time_cache = []
+
+        self.next_ins_id = 0
+        self.kf_id = 0
+        self.last_frame_data = None
+
+        self.geo_weight = self.config.get("geo_weight", 0.7)
+        self._time_cache = []
+        print('Semantic config')
+        pprint.PrettyPrinter().pprint(config)
+
+    def reset_for_new_scene(
+            self,
+            scene_name: str | None,
+            cam_intrinsics: torch.Tensor | None,
+            logger: Logger | None = None) -> None:
+        self.cam_intrinsics = cam_intrinsics
+        if logger is not None:
+            self.logger = logger
+        self.keyframes = {
+            "ins_descriptors": dict(),
+            "frame_id": list(),
+            "ins_maps": list(),
+        }
+        self.keyframes_queue = deque([])
+        self.objects = dict()
+        self._time_cache = []
+        self.next_ins_id = 0
+        self.kf_id = 0
+        self.last_frame_data = None
+        if self.mask_generator is not None and scene_name:
+            self.mask_generator.masks_path = os.path.join(
+                self.mask_generator.config["masks_base_path"], scene_name)
+            self.mask_generator.precomputed = self.mask_generator.config.get(
+                "precomputed", False)
+
+    def to(self, device: str) -> None:
+        """
+        Move predictor model to either 'cpu' or 'cuda' device.
+
+        Args:
+            device (str): device to mode the model to.
+        """
+        if "cuda" in device:
+            return self.cuda()
+        else:
+            return self.cpu()
+
+    def cpu(self) -> None:
+        """Move predictor model to cpu device."""
+        self.device = "cpu"
+        self.clip_generator.cpu()
+        if self.mask_generator is not None:
+            self.mask_generator.cpu()
+
+    def cuda(self) -> None:
+        """Move predictor model to cuda default device."""
+        self.device = "cuda"
+        self.clip_generator.cuda()
+        if self.mask_generator is not None:
+            self.mask_generator.cuda()
+
+    def profil(func):
+        """
+        A decorator that profiles functions running time if self.config["log"]
+
+        == True.
+
+        Args:
+            - func: The function to be decorated.
+        Returns:
+            - The wrapper function.
+        """
+
+        def wrapper(self, *args, **kwargs):
+            if self.config.get("log", False):
+                torch.cuda.synchronize()
+                start_time = time.time()
+                out = func(self, *args, **kwargs)
+                torch.cuda.synchronize()
+                end_time = time.time()
+                self._time_cache.append(end_time - start_time)
+                return out
+            else:
+                return func(self, *args, **kwargs)
+        return wrapper
+
+    def detect_and_track_objects(self,
+                                 frame_data: Tuple[int,
+                                                   np.ndarray,
+                                                   np.ndarray,
+                                                   Tuple[float,
+                                                         float,
+                                                         int]],
+                                 map_data: Tuple[torch.Tensor,
+                                                 torch.Tensor,
+                                                 torch.Tensor],
+                                 c2w: torch.Tensor) -> torch.Tensor:
+        """
+        For the current frame (1) computes using SAM for each level i \\in M, a
+        set of segmentation maps; (2) track segmentation maps between frames
+        projecting 3D points and associating the map to 3D instances, if 3D
+        points don't have an associated 3D instance, create a new; (3)
+        associate 3D points without an instance id to matched instances; (4)
+        fuse 2D segments associated to the same 3D instance.
+
+        Args:
+            - frame_data (tuple): current frame data.
+                - frame_id (int): current frame id.
+                - image (np.ndarray): RGB image with shape (H, W, 3).
+                - depth (np.ndarray): Frame depth with shape (h, w).
+                - rgb_depth_ratio (tuple): If H == h and W == w, tuple is empty, otherwise stores (r_h, r_w, crop_edge), such that H = (h+2*crop_edge)*r_h, and W = (w+2*crop_edge)*r_w
+            - map_data (tuple[torch.Tensor, torch.Tensor, torch.Tensor]):
+                - points_3d (torch.Tensor): set of 3D point coordinates to match to current fram segmentation maps.
+                - points_ids (torch.Tensor): ids to identify 3D points in case their order changes, or any of them is pruned, between keyframes.
+                - points_ins_ids (torch.Tensor): ids of objects associated to each 3d point for each segmentation level of previous keyframes.
+            - c2w: (torch.Tensor): camera to world 3D transform.
+        Update:
+            - points_ins_ids (torch.Tensor): updated ids of 3D instances associated to each 3d point after current keyframe segmentation.
+        """
+        frame_id, image = frame_data[:2]
+
+        seg_maps, binary_maps = self._get_masks(image, frame_id)
+        if len(seg_maps) == 0:
+            print(f"No mask segmented in {frame_id}!")
+            return None, None, None
+
+        last_id = self.next_ins_id
+        matched_ins_ids, binary_maps, n_matched_points, updated_ponts_ins_ids = self._match_and_track_instances(
+            frame_data[1:], map_data, c2w, seg_maps, binary_maps)
+
+        # Save keyframe information
+        self.keyframes_queue.append(
+            [matched_ins_ids, binary_maps, image, self.kf_id])
+        self.kf_id += 1
+
+        if self.config.get("log", False):
+            self.keyframes["frame_id"].append(frame_id)
+            self.logger.log_ovo_stats(
+                {
+                    "frame_id": frame_id,
+                    "n_obj": [self.next_ins_id - last_id],
+                    "n_matches": n_matched_points,
+                    "t_sam": round(self._time_cache[0], 2),
+                    "t_obj": round(self._time_cache[1], 3),
+                },
+                print_output=True
+            )
+            self._time_cache = []
+
+        return updated_ponts_ins_ids, matched_ins_ids, binary_maps
+
+    @profil
+    def _get_masks(self, image: np.ndarray, frame_id: int):
+        """
+        Profiled call to mask_generator to either compute segmentation maps for
+        image, or load precomputed segments.
+
+        Args:
+            - frame_id (int): current frame id.
+            - image (np.ndarray): RGB image with shape (H, W, 3).
+
+        Returns:
+            - seg_map (torch.Tensor): The segmentation maps on self.device with shape (H, W).
+            - binary_maps (torch.Tensor): The binary maps on self.device with shape (N, H, W).
+        """
+        return self.mask_generator.get_masks(image, frame_id)
+
+    @profil
+    def _match_and_track_instances(self,
+                                   frame_data: Tuple[int,
+                                                     np.ndarray,
+                                                     np.ndarray,
+                                                     Tuple[float,
+                                                           float,
+                                                           int]],
+                                   map_data: Tuple[torch.Tensor,
+                                                   torch.Tensor,
+                                                   torch.Tensor],
+                                   c2w: torch.Tensor,
+                                   seg_map: torch.Tensor,
+                                   binary_maps: torch.Tensor,
+                                   iggt_data: Dict = None) -> Tuple[List[int],
+                                                                    torch.Tensor,
+                                                                    int]:
+        """
+        For the current frame (1) computes using SAM for each level i \\in M, a
+        set of segmentation maps; (2) track segmentation maps between frames
+        projecting 3D points and associating the map to 3D instances, if 3D
+        points don't have an associated 3D instance, create a new; (3)
+        associate 3D points without an instance id to matched instances; (4)
+        fuse 2D segments associated to the same 3D instance.
+
+        Args:
+            - frame_data (tuple): current frame data.
+                - image (np.ndarray): RGB image with shape (H, W, 3).
+                - depth (np.ndarray): Frame depth with shape (h, w).
+                - rgb_depth_ratio (tuple): If H == h and W == w, tuple is empty, otherwise stores (r_h, r_w, crop_edge), such that H = (h+2*crop_edge)*r_h, and W = (w+2*crop_edge)*r_w
+            - map_data (tuple[torch.Tensor, torch.Tensor, torch.Tensor]):
+                - points_3d (torch.Tensor): set of 3D point coordinates to match to current fram segmentation maps.
+                - points_ids (torch.Tensor): ids to identify 3D points in case their order changes, or any of them is pruned, between keyframes.
+                - points_ins_ids (torch.Tensor): ids of objects associated to each 3d point for each segmentation level of previous keyframes.
+            - c2w: (torch.Tensor): camera to world 3D transform.
+            - seg_map (torch.Tensor): The segmentation maps on self.device with shape (H, W).
+            - binary_maps (torch.Tensor): Tensor of shape (N, H, W) on self.device, where each pixel will have a value of 1 if it belongs to the nth segmentation mask, or 0 otherwise.
+        Update:
+            - points_ins_ids (torch.Tensor): updated ids of 3D instances associated to each 3d point with current keyframe segmentation.
+        Return:
+            - matched_ins_ids (List): Ids of 3D instances matched in current frame
+            - binary_maps (torch.Tensor): The matched binary maps on self.device with shape (M, H, W).
+            - n_matched_points (int): numbed of 3D points matched with 3D instances in current keyframe.
+        """
+        kf_id = self.kf_id
+        image, depth, rgb_depth_ratio = frame_data
+        points_3d, points_ids, points_ins_ids = map_data
+
+        depth = torch.from_numpy(depth).to(self.device)
+        camera_frustum_corners = geometry_utils.compute_camera_frustum_corners(
+            depth, c2w, self.cam_intrinsics)
+        frustum_mask = geometry_utils.compute_frustum_point_ids(
+            points_3d, camera_frustum_corners, device=self.device)
+        frustum_points_3d = points_3d[frustum_mask]
+
+        if self.config.get("depth_filter", False):
+            if self.dataset_name == "g1" or self.dataset_name == "pocket":
+                depth = geometry_utils.depth_filter_lidar(depth)
+            else:
+                depth = geometry_utils.depth_filter(
+                    depth, 3, 1.0, 0.02)  # kernel_size, depth_th, depth_diff_th
+
+        matched_points_idxs, matches = geometry_utils.match_3d_points_to_2d_pixels(depth, torch.linalg.inv(
+            c2w), frustum_points_3d, self.cam_intrinsics, self.config["match_distance_th"])
+        if len(rgb_depth_ratio) > 0:
+            matches += rgb_depth_ratio[-1]
+            matches[:, 1] = (matches[:, 1] * rgb_depth_ratio[0]).int()
+            matches[:, 0] = (matches[:, 0] * rgb_depth_ratio[1]).int()
+        matched_seg_idxs = seg_map[matches[:, 1], matches[:, 0]]
+
+        frustum_points_ids, frustum_points_ins_ids = points_ids[
+            frustum_mask], points_ins_ids[frustum_mask]
+
+        # # only-geometric tracking
+        frustum_points_ins_ids, matched_ins_info = self._track_objects(frustum_points_ids, frustum_points_ins_ids,
+                                                                       matched_points_idxs, matched_seg_idxs,
+                                                                       seg_map, self.config["track_th"], kf_id)
+
+        matched_ins_ids, binary_maps = self._fuse_masks_with_same_ins_id(
+            binary_maps, matched_ins_info, kf_id)
+
+        updated_ponts_ins_ids = points_ins_ids.clone()
+        # Updates points_ins_ids
+        updated_ponts_ins_ids[frustum_mask] = frustum_points_ins_ids
+
+        if self.config.get("debug_info", False):
+            ins_maps = torch.ones(
+                image.shape[:2], dtype=torch.int, device=self.device) * -1
+            for ins_id, matches_info in matched_ins_info.items():
+                for map_idx, _ in matches_info:
+                    ins_maps[binary_maps[map_idx]] = ins_id
+            self.keyframes["ins_maps"].append(ins_maps.cpu().numpy())
+
+        return matched_ins_ids, binary_maps, len(
+            matched_points_idxs), updated_ponts_ins_ids
+
+    def _extract_mask_features(
+            self,
+            feature_map: torch.Tensor,
+            binary_maps: torch.Tensor) -> torch.Tensor:
+        """
+        计算每个Mask内的平均特征。
+        Args:
+            feature_map: (H, W, C) dense features
+            binary_maps: (N, H, W) boolean masks
+        Returns:
+            mask_features: (N, C) normalized features
+        """
+        if feature_map is None:
+            return None
+
+        if feature_map.device != binary_maps.device:
+            feature_map = feature_map.to(binary_maps.device)
+
+        # 确保 feature_map 和 binary_maps 尺寸一致
+        H_mask, W_mask = binary_maps.shape[-2:]
+
+        #  (C, H, W) to (1, C, H, W)
+        feat_tensor = feature_map.unsqueeze(0)  # (1, C, H, W)
+        H_feat, W_feat = feature_map.shape[1], feature_map.shape[2]
+
+        if H_mask != H_feat or W_mask != W_feat:
+            print(
+                f"Resizing feature map from ({H_feat}, {W_feat}) to ({H_mask}, {W_mask})")
+            feat_tensor = torch.nn.functional.interpolate(feat_tensor, size=(
+                H_mask, W_mask), mode='bilinear', align_corners=False)
+
+        feat_tensor = feat_tensor.squeeze(0)  # (C, H, W)
+
+        # 计算每个Mask的平均特征
+        # binary_maps: (N, H, W) -> float
+        masks_float = binary_maps.float()
+        mask_areas = masks_float.sum(dim=(1, 2), keepdim=True)  # (N, 1, 1)
+        mask_areas[mask_areas == 0] = 1.0  # 避免除零
+
+        # (N, 1, H, W) * (1, C, H, W) -> (N, C, H, W) -> sum -> (N, C)
+        mask_features = (
+            masks_float.unsqueeze(1) *
+            feat_tensor.unsqueeze(0)).sum(
+            dim=(
+                2,
+                3))
+        mask_features = mask_features / mask_areas.squeeze(2)
+
+        # L2 归一化
+        mask_features = torch.nn.functional.normalize(
+            mask_features, p=2, dim=1)
+
+        return mask_features
+
+    def update_semantic_info(
+            self,
+            feature_map: torch.Tensor,
+            binary_maps: torch.Tensor):
+        """一个轻量级函数，专门用于在窗口切换时更新锚点帧的语义状态。 它只计算并覆盖
+        self.last_frame_data，不执行任何跟踪或地图更新。 这为下一个真实帧的跟踪提供了正确的语义上下文。"""
+        if feature_map is None or binary_maps is None:
+            return
+
+        # 1. 提取当前帧（锚点帧）的掩码特征
+        current_mask_feats = self._extract_mask_features(
+            feature_map, binary_maps)
+        if current_mask_feats is None:
+            return
+
+        if self.last_frame_data is None:
+            print(
+                "Warning: last_frame_data is None when updating semantic bridging data.")
+            self.last_frame_data = {}
+        self.last_frame_data["feats"] = current_mask_feats
+        print(f"Updated semantic bridge for anchor frame.")
+
+    def _compute_mask_centers(self,
+                              iggt_data: Dict,
+                              binary_maps: torch.Tensor,
+                              seg_map: torch.Tensor,
+                              num_masks: int) -> Dict[int,
+                                                      torch.Tensor]:
+        """辅助函数：计算当前帧所有Mask的3D中心."""
+        centers = {}
+        if iggt_data is None:
+            return centers
+
+        depth = iggt_data['depth'].to(self.device)
+        extrinsic = iggt_data['extrinsic'].to(self.device)
+        intrinsic = iggt_data['intrinsic'].to(self.device)
+        # 补全 extrinsic 矩阵并求逆得到 c2w
+        if extrinsic.shape == (3, 4):
+            bottom = torch.tensor(
+                [[0, 0, 0, 1]], dtype=extrinsic.dtype, device=extrinsic.device)
+            extrinsic = torch.cat([extrinsic, bottom], dim=0)
+        c2w = torch.linalg.inv(extrinsic)
+
+        # 调整深度图维度
+        if depth.dim() == 3:
+            depth = depth.squeeze(
+                -1) if depth.shape[-1] == 1 else depth.squeeze(0)
+
+        h, w = depth.shape
+        y_grid, x_grid = torch.meshgrid(
+            torch.arange(
+                h, device=self.device), torch.arange(
+                w, device=self.device), indexing='ij')
+
+        for m_idx in range(num_masks):
+            mask = binary_maps[m_idx] if binary_maps is not None else (
+                seg_map == m_idx)
+            if mask.sum() == 0:
+                continue
+
+            # 确保 Mask 尺寸匹配
+            if mask.shape != depth.shape:
+                mask = torch.nn.functional.interpolate(mask.unsqueeze(0).unsqueeze(
+                    0).float(), size=depth.shape, mode='nearest').squeeze() > 0.5
+
+            mask_d = depth[mask]
+            valid_d = mask_d > 0
+            if valid_d.sum() == 0:
+                continue
+
+            # 反投影计算中心
+            z = mask_d[valid_d].median()
+            u = x_grid[mask][valid_d].float().mean()
+            v = y_grid[mask][valid_d].float().mean()
+
+            x = (u - intrinsic[0, 2]) * z / intrinsic[0, 0]
+            y = (v - intrinsic[1, 2]) * z / intrinsic[1, 1]
+            p_world = (
+                c2w @ torch.tensor([x, y, z, 1.0], device=self.device))[:3]
+            centers[m_idx] = p_world
+
+        return centers
+
+    def _track_objects(self,
+                       points_ids: torch.Tensor,
+                       points_ins_ids: torch.Tensor,
+                       matched_points_idxs: torch.Tensor,
+                       matched_seg_idxs: torch.Tensor,
+                       seg_map: torch.Tensor,
+                       track_th: float,
+                       kf_id: int) -> tuple[torch.Tensor,
+                                            Dict[int,
+                                                 List[Tuple[int,
+                                                            int]]]]:
+        """
+        We project 3D points and match with segmentation maps.
+
+        Then we assign to each segmentation map the id of the 3D instance associated with the majority of points projected into it. If the set points don't have an object assigned, a new object is created and assigned to them. Points without an object assigned get assigned the segmentation map's instance. Args:
+            - points_ids (torch.Tensor): ids to identify 3D points in case their order changes, or any of them is pruned, between keyframes.
+            - points_ins_ids (torch.Tensor): ids of 3D instances associated to each 3d point.
+            - matched_points_idxs (torch.Tensor): idxs in points_3d of N matched points.
+            - matched_seg_idxs (torch.Tensor): (N) tensor of the indexes of the segmentation map matched to each of N 3D points.
+            - seg_map (torch.Tensor): (H,W) tensor where each pixel stores the idx of the corresponding mask.
+            - kf_id (int): current keyframe id.
+        Return:
+            - points_ins_ids (torch.Tensor): ids of 3D instances associated to each element of points_ids.
+            - matched_ins_info (Dict[int, List[Tuple[int, int]]]]): Hash map storing for each observed 3D instance, a list of (matched mask index, mask area).
+        """
+        matched_ins_info = {}
+        for map_idx in range(seg_map.max() + 1):
+            map_ins_id = -1
+            # 找到落入该掩码的所有3D点
+            map_points = matched_points_idxs[matched_seg_idxs == map_idx]
+            if len(map_points) > track_th:
+                mask_area = (seg_map == map_idx).sum().item()
+                # 标记了map_points中哪些点已经有关联的3D实例ID（ID > -1）。
+                assigned_mask = points_ins_ids[map_points] > -1
+                unassigned_points_ids = points_ids[map_points[~assigned_mask]].cpu(
+                ).tolist()
+                # Assign points to 3D instance, or create a new instance
+                # 每个点储存了一个ins_id，取投影到该mask内的点中，ins_id出现频率最高的作为该mask对应的3D实例id
+                if assigned_mask.sum().item() > track_th:
+                    # 通过对所有已分配点的ID进行投票（取众数），来确定这个2D掩码最可能属于哪个3D实例。
+                    map_ins_id = torch.mode(
+                        points_ins_ids[map_points[assigned_mask]]).values.item()
+                    # Check if instance still exists (may have been removed
+                    # during loop closure optimization)
+                    if map_ins_id not in self.objects:
+                        print(
+                            f"[TrackObjects] Warning: Instance {map_ins_id} not found in objects, skipping (likely removed during loop closure)")
+                        continue
+                    self.objects[map_ins_id].update(
+                        unassigned_points_ids, kf_id, mask_area)
+                    if map_ins_id in matched_ins_info.keys():
+                        matched_ins_info[map_ins_id].append(
+                            (map_idx, mask_area))
+                    else:
+                        matched_ins_info[map_ins_id] = [(map_idx, mask_area)]
+
+                elif len(unassigned_points_ids) > track_th:
+                    map_ins_id = self.next_ins_id
+                    self.next_ins_id += 1
+                    # assigned points do not change obj id
+                    self.objects[map_ins_id] = Instance3D(
+                        map_ins_id, kf_id=kf_id, points_ids=unassigned_points_ids, mask_area=mask_area)
+                    matched_ins_info[map_ins_id] = [(map_idx, mask_area)]
+
+                if map_ins_id > -1:
+                    # Assignto matched unassigned points (id==-1) new instance
+                    # id
+                    points_ins_ids[map_points[~assigned_mask]] = map_ins_id
+
+        return points_ins_ids, matched_ins_info
+
+    def _fuse_masks_with_same_ins_id(self,
+                                     binary_maps: torch.Tensor,
+                                     matched_ins_info: Dict[int,
+                                                            List[Tuple[int,
+                                                                       int]]],
+                                     kf_id: int) -> Tuple[List[int],
+                                                          torch.Tensor]:
+        """
+        A 3D object can be mapped to more than one 2D mask.
+
+        We fuse masks that belong to the same ins_id, keeping idx of first occurence. Objects matched to fused masks are updated to the new masks areas. Args:
+            - binary_maps (torch.Tensor): Tensor of shape (N, H, W) on self.device, where each pixel will have a value of 1 if it belongs to the nth segmentation mask, or 0 otherwise.
+            - matched_ins_info (dict): Hash map storing for each observed 3D instance, a list of (matched mask index, mask area).
+            - kf_id (int): current keyframe id.
+        Return:
+            - matched_ins_ids:
+            - binary_maps (torch.Tensor): Updated binary maps on self.device with shape (M, H, W).
+        """
+        matched_ins_ids = []
+        maps_idxs = []
+        to_pop = []
+        i = 0
+        for ins_id, data_list in matched_ins_info.items():
+            # Check if instance still exists (may have been removed during loop
+            # closure optimization)
+            if ins_id not in self.objects:
+                print(
+                    f"[FuseMasks] Warning: Instance {ins_id} not found in objects, skipping (likely removed during loop closure)")
+                to_pop.append(ins_id)
+                continue
+
+            map_idx = data_list[0][0]
+            if len(data_list) > 1:
+                for j in range(1, len(data_list)):
+                    binary_maps[map_idx] = torch.logical_or(
+                        binary_maps[map_idx], binary_maps[data_list[j][0]])
+
+                mask = binary_maps[map_idx]
+                mask_area = mask.sum().item()
+
+                if self.n_top_views > 0:
+                    self.objects[ins_id].add_top_kf(kf_id, mask_area)
+
+            if self.n_top_views <= 0 or self.objects[ins_id].is_top_kf(kf_id):
+                matched_ins_ids.append(ins_id)
+                maps_idxs.append(map_idx)
+                matched_ins_info[ins_id] = [
+                    (i, binary_maps[map_idx].sum().item())]
+                i += 1
+            else:
+                to_pop.append(ins_id)
+        for ins_id in to_pop:
+            matched_ins_info.pop(ins_id)
+
+        binary_maps = binary_maps[maps_idxs]
+
+        return matched_ins_ids, binary_maps
+
+    def compute_semantic_info(self) -> None:
+        if len(self.keyframes_queue) > self.config.get("kf_queue_delay", 0):
+            self._compute_semantic_info()
+
+    def complete_semantic_info(self) -> None:
+        while len(self.keyframes_queue) > 0:
+            self._compute_semantic_info()
+
+    def _compute_semantic_info(self) -> None:
+        """Compute semantic information of first keyframe in the queue."""
+        matched_ins_ids, binary_maps, image, kf_id = self.keyframes_queue.popleft()
+
+        if len(matched_ins_ids) > 0:
+            if self.n_top_views > 0:
+                obj_to_compute = []
+                for j, ins_id in enumerate(matched_ins_ids):
+                    # Check if instance still exists (may have been removed
+                    # during loop closure optimization)
+                    if ins_id not in self.objects:
+                        print(
+                            f"[ComputeSemantic] Warning: Instance {ins_id} not found in objects, skipping (likely removed during loop closure)")
+                        continue
+                    if self.objects[ins_id].is_top_kf(kf_id):
+                        obj_to_compute.append(j)
+                if len(obj_to_compute) == 0:
+                    return
+                matched_ins_ids, binary_maps = np.asarray(
+                    matched_ins_ids)[obj_to_compute].tolist(), binary_maps[obj_to_compute]
+
+            image = torch.from_numpy(
+                image.transpose(
+                    (2, 0, 1))).to(
+                self.device)
+            seg_images = self._get_seg_image(image, binary_maps)
+            clip_embeds = self._extract_clip(
+                image[None, ...] / 255., seg_images / 255.).cpu()
+            self._update_matched_objects_clip(
+                clip_embeds, matched_ins_ids, kf_id)
+
+            if self.config.get("log", False):
+                frame_id = self.keyframes["frame_id"][kf_id]
+                self.logger.log_ovo_stats(
+                    {
+                        "frame_id": frame_id,
+                        "t_seg": round(self._time_cache[0], 2),
+                        "t_clip": round(self._time_cache[1], 2),
+                        "t_up": round(self._time_cache[2], 3)
+                    },
+                    print_output=True
+                )
+                self._time_cache = []
+
+    def update_map(self, map_data, kfs):
+        # 0. clean the queue
+        self.complete_semantic_info()
+        points_3d, points_ids, points_ins_ids = map_data
+
+        # 1. remove 3D instances that are not in pcd_obj_ids, despite some
+        # instances having been detected with > than 100 points, the deletion
+        # of Keyframes, can reduce their support to 1 or 2 points. TODO: We
+        # should 1) recompute the support of this instances by projecting the
+        # full pcd into them or 2) just remove them.
+        objects_list = []
+        objects_to_del = []
+        map_ins_ids = points_ins_ids.unique()
+        for ins_id in self.objects.keys():
+            if ins_id in map_ins_ids:
+                objects_list.append(self.objects[ins_id])
+            else:
+                objects_to_del.append(self.objects[ins_id])
+        # 2. Fuse 3D instances that fulfill a condition.
+        # TODO: optimize brute-force approach (compare all instances to
+        # each-other)
+        objects = {}
+        fused_objects = {}
+        for i, instance1 in enumerate(objects_list):
+            if instance1.id in fused_objects:
+                continue
+            for instance2 in objects_list[i + 1:]:
+                if instance2.id in fused_objects:
+                    continue
+                elif instance_utils.same_instance(instance1, instance2, map_data):
+                    instance1, points_ins_ids = instance_utils.fuse_instances(
+                        instance1, instance2, map_data)
+                    fused_objects[instance2.id] = instance1.id
+            objects[instance1.id] = instance1
+        print(
+            f"Semantic Map update: removed {len(objects_to_del)}, fused {len(fused_objects)} instances")
+        # 3. Updated saved info
+        for id2, id1 in fused_objects.items():
+            for kf in self.objects[id2].kfs_ids:
+                if id2 not in self.keyframes["ins_descriptors"][kf]:
+                    continue
+                # If both ins were observed in the same frame, the ins_maps
+                # should be fused and descriptors recomputed. Neverthless, it
+                # is not probable that two instances seen in the same kf will
+                # fulfill the distance threshold
+                ins_descriptor2 = self.keyframes["ins_descriptors"][kf].pop(
+                    id2)
+                if id1 not in self.keyframes["ins_descriptors"][kf] or True:
+                    self.keyframes["ins_descriptors"][kf][id1] = ins_descriptor2
+
+        self.objects = objects
+        # 4. Update object descriptors
+        self.update_objects_clip()
+        return points_ins_ids
+
+    @profil
+    def _get_seg_image(
+            self,
+            image: torch.Tensor,
+            binary_maps: torch.Tensor) -> torch.Tensor:
+        """
+        Profiled call to self.mask_generator.get_seg_img.
+
+        Args:
+            - binary_maps (tensor): A tensor of (N, H, W) containing N binary maps.
+            - image (tensor): A tensor of shape (H, W, 3) representing the input image.
+
+        Returns:
+            - seg_images (torch.Tensor): Segmented images with shape (N, 3, h, w), if self.config["clip"]["embed_type"] == "vanilla" , else (N, 6, h, w) with h = w = self.config["sam"]["mask_res"].
+        """
+        return self.mask_generator.get_seg_img(binary_maps, image)
+
+    @profil
+    def _extract_clip(
+            self,
+            image: torch.Tensor,
+            seg_images: torch.Tensor) -> List[Any]:
+        """
+        Profiled call to self.clip_generator.extract_clip.
+
+        Computes a CLIP vector for each mask of the segmented image. Args:
+            - image (torch.Tensor): Full source RGB image with dimensions (H,W,3) and range 0-255.
+            - seg_images (torch.Tensor): array of shape (N,6,h,w), with h < H and w < W. The first 3 channels of the second dimension store the segment with black background of a 2D instance, while the last 3 channels store the image of the minimum bounding box arround that 2D semgent with background.
+            - return_all: if True returns the three computed descriptors of each image in seg_images instead of merging them.
+        Return:
+            - climp_embeds: each level/key stores a list of numpy arrays with dim (N, self.clip_dim).
+        """
+        return self.clip_generator.extract_clip(
+            image, seg_images, self.config.get(
+                "return_all_clips", False))
+
+    @profil
+    def _update_matched_objects_clip(
+            self,
+            clip_embeds: torch.Tensor,
+            matched_ins_ids: List[int],
+            kf_id: int) -> None:
+        """
+        Store clip_embeds keyframe information, and updates matched 3D
+        instances' clip embeddings.
+
+        Args:
+            - clip_embeds (torch.Tensor): A tensor containing the clip embeddings.
+            - matched_ins_ids (List[int]): A list of instance IDs that are matched with the clip embeddings.
+            - kf_id (int): current keyframe id.
+        Updates:
+            self.keyframes["ins_descriptors"]
+        """
+        ins_embeds = dict()
+        for i, ins_id in enumerate(matched_ins_ids):
+            if ins_id != -1:
+                ins_embeds[ins_id] = clip_embeds[i]
+
+        # Save keyframe information
+        self.keyframes["ins_descriptors"][kf_id] = ins_embeds
+
+        for ins_id in matched_ins_ids:
+            self.objects[ins_id].update_clip(self.keyframes["ins_descriptors"])
+        return
+
+    def update_objects_clip(self) -> None:
+        """Update all 3D instances descriptors."""
+        for object in self.objects.values():
+            object.update_clip(self.keyframes["ins_descriptors"])
+        return
+
+    @torch.no_grad()
+    def classify_instances(
+            self,
+            classes: List[str],
+            template: str | List[str] = "This is a photo of a {}",
+            th: float = 0):
+        """
+        Classifies 3D instances based on provided classes and templates.
+
+        Args:
+            - classes (List[str]): A list of class names to classify the instances into.
+            - templates (str | List[str], optional): A template or a list of templates to use for classification. If it's a list, the classes embeddings will be an ensembles of the templates.
+            - th (float, optional): Minimum confidence to classify an instance. If highest confidenc is lower than th, the instance remains unclassified (-1). Default 0.
+        Returns:
+            dict: A dictionary containing:
+                - "classes" (numpy.ndarray): An array of classes indices corresponding to each 3D instance.
+                - "conf" (numpy.ndarray): An array of confidence scores for each classification.
+        """
+        sim_map = self.query(classes, template)
+        instances_classes = torch.argmax(sim_map, dim=1)
+        max_conf = torch.gather(sim_map, -
+                                1, instances_classes[:, None]).squeeze()
+
+        instances_classes[max_conf <= th] = -1
+        max_conf[max_conf <= th] = 0
+        instances_info = {
+            "classes": instances_classes.cpu().numpy(),
+            "conf": max_conf.cpu().numpy()}
+        return instances_info
+
+    @torch.no_grad()
+    def query(
+            self,
+            queries: List[str],
+            templates: List[str] = ['{}'],
+            ensemble: bool = False) -> torch.Tensor:
+        """
+        Queries the 3D instances using the provided queries and templates.
+
+        Args:
+            - queries (List[str]): A list of query strings to be used for querying the 3D instances.
+            - templates (List[str], optional): A list of template strings to format the queries. Defaults to ['{}'].
+            - ensemble (bool, optional): A flag indicating whether to use ensemble method for querying. Defaults to False.
+        Returns:
+            - torch.Tensor: A relevance map tensor of shape (len(queries), n_objs) indicating the similarity between the queries and the 3D instances.
+        Raises:
+            AssertionError: If there are no 3D instances to query.
+        """
+        assert len(self.objects) > 0, "No 3D instances to query!"
+        obj_clips = self.get_objs_clips()
+        relev_map = self.clip_generator.get_embed_txt_similarity(
+            obj_clips.to(self.device), queries, templates=templates)
+        return relev_map
+
+    @torch.no_grad()
+    def get_objs_clips(self) -> torch.Tensor:
+        """
+        Retrieve all N 3D instances' descriptors.
+
+        Return:
+            - torch.Tensor: A tensor with shape (N, self.clip_generator.clip_dim) on self.device.
+        """
+        object_clips = torch.zeros(
+            (len(
+                self.objects),
+                self.clip_generator.clip_dim),
+            device=self.device)
+        for j, obj in enumerate(self.objects.values()):
+            if obj.clip_feature is not None:
+                object_clips[j] = obj.clip_feature.to(self.device)
+            else:
+                # Fallback: recompute CLIP feature for this object if missing
+                obj.update_clip(self.keyframes["ins_descriptors"])
+                if obj.clip_feature is not None:
+                    object_clips[j] = obj.clip_feature.to(self.device)
+        return object_clips
+
+    # def capture_dict(self, debug_info: bool) -> Dict[str, Any]:
+    #     """
+    #     Captures the current state of the scene and returns it as a dictionary.
+    #     Args:
+    #         debug_info (bool): If True, includes additional debug information in the dictionary.
+    #     Returns:
+    #         dict: A dictionary containing the current state of the scene. If debug_info is True,
+    #               the dictionary will also include frame IDs, default object maps, and object descriptors.
+    #     """
+    #     scene_dict = {
+    #         "ins_3d_ids": np.asarray(list(self.objects.keys()))
+    #     }
+    #     for obj in self.objects.values():
+    #         scene_dict.update(obj.export(debug_info))
+    #     if debug_info:
+    #         scene_dict["frame_id"] = np.array(self.keyframes["frame_id"])
+    #         scene_dict["ins_map"] = np.array(self.keyframes["ins_maps"])
+    #         for kf_id, ins_descriptors in self.keyframes["ins_descriptors"].items():
+    #             for ins_id, descriptors in ins_descriptors.items():
+    #                 scene_dict[f"kf_{kf_id}_ins3d_{ins_id}_clips"] = descriptors.cpu().numpy()
+    #     return scene_dict
+
+    def capture_dict(self, debug_info: bool) -> Dict[str, Any]:
+        """
+        Captures the current state of the scene and returns it as a dictionary.
+
+        Args:
+            debug_info (bool): If True, includes additional debug information in the dictionary.
+        Returns:
+            dict: A dictionary containing the current state of the scene. If debug_info is True,
+                  the dictionary will also include frame IDs, default object maps, and object descriptors.
+        """
+        scene_dict = {
+            "ins_3d_ids": np.asarray(list(self.objects.keys()))
+        }
+        for obj in self.objects.values():
+            scene_dict.update(obj.export(debug_info))
+
+        if debug_info:
+            scene_dict["frame_id"] = np.array(self.keyframes["frame_id"])
+            scene_dict["ins_map"] = np.array(self.keyframes["ins_maps"])
+            for kf_id, ins_descriptors in self.keyframes["ins_descriptors"].items(
+            ):
+                for ins_id, descriptors in ins_descriptors.items():
+                    scene_dict[f"kf_{kf_id}_ins3d_{ins_id}_clips"] = descriptors.cpu(
+                    ).numpy()
+                    # # 只保存有效实例的描述符
+                    # if ins_id in valid_ids:
+                    #     scene_dict[f"kf_{kf_id}_ins3d_{ins_id}_clips"] = descriptors.cpu().numpy()
+        return scene_dict
+
+    def restore_dict(
+            self, scene_dict: Dict[str, Any], debug_info: bool = False):
+        """
+        Restores the state of the object from a given scene dictionary.
+        Args:
+            scene_dict (Dict[str, Any]): A dictionary containing the scene data to restore.
+            debug_info (bool, optional): If True, additional debug information will be restored. Defaults to False.
+        Raises:
+            Exception: Catches and ignores any exceptions during the restoration process.
+        Notes:
+            - Iterates through the keys of the scene_dict to restore Instance3D instances.
+            - If debug_info is True, restores keyframes information including frame IDs, instance maps, and instance descriptors.
+        """
+        for i in scene_dict["ins_3d_ids"]:
+            obj = Instance3D(i)
+            obj.restore(scene_dict, debug_info)
+            self.objects[obj.id] = obj
+        if debug_info:
+            self.keyframes["frame_id"] = list(scene_dict["frame_id"])
+            self.keyframes["ins_maps"] = [
+                x.squeeze() for x in np.split(
+                    scene_dict["ins_map"], len(
+                        self.keyframes["frame_id"]))]
+            for i in range(len(self.keyframes["frame_id"])):
+                self.keyframes["ins_descriptors"][i] = {}
+                for ins_id in self.objects.keys():
+                    descriptor = scene_dict.get(
+                        f"kf_{i}_ins3d_{ins_id}_clips", None)
+                    if descriptor is not None:
+                        self.keyframes["ins_descriptors"][i][ins_id] = torch.tensor(
+                            descriptor, device=self.device)

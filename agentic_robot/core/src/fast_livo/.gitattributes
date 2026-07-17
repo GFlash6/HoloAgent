@@ -1,0 +1,3 @@
+pics/rosgraph.png filter=lfs diff=lfs merge=lfs -text
+pics/Framework.png filter=lfs diff=lfs merge=lfs -text
+pics/debug_error.png filter=lfs diff=lfs merge=lfs -text

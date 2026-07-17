@@ -1,0 +1,55 @@
+instruction: 11机器和12机器同时去点位1，11机器到达后高挥手打招呼，12机器到达后和用户击掌，全部完成后同时挥手再见，然后回到点位2
+recorded_at: '2026-07-13T12:57:12.589104'
+dag:
+  description: 11/12 并行到点位1；11 到达后挥手；12 到达后击掌；全部完成后并行挥手再见；最后并行回点位2
+  nodes:
+  - id: r11_nav_p1
+    robot_id: 11
+    skill: navigation
+    target: one_point_1
+    depends_on: []
+  - id: r12_nav_p1
+    robot_id: 12
+    skill: navigation
+    target: one_point_1
+    depends_on: []
+  - id: r11_wave_greet
+    robot_id: 11
+    skill: arm
+    target: wave_above_head
+    depends_on:
+    - r11_nav_p1
+  - id: r12_high_five
+    robot_id: 12
+    skill: arm
+    target: high_five
+    depends_on:
+    - r12_nav_p1
+  - id: r11_wave_bye
+    robot_id: 11
+    skill: arm
+    target: wave_under_head
+    depends_on:
+    - r11_wave_greet
+    - r12_high_five
+  - id: r12_wave_bye
+    robot_id: 12
+    skill: arm
+    target: wave_under_head
+    depends_on:
+    - r11_wave_greet
+    - r12_high_five
+  - id: r11_nav_p2
+    robot_id: 11
+    skill: navigation
+    target: one_point_2
+    depends_on:
+    - r11_wave_bye
+    - r12_wave_bye
+  - id: r12_nav_p2
+    robot_id: 12
+    skill: navigation
+    target: one_point_2
+    depends_on:
+    - r11_wave_bye
+    - r12_wave_bye

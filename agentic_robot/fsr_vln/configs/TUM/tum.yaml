@@ -1,0 +1,14 @@
+dataset_name: "tum"
+cam: 
+  H: 480 
+  W: 640
+  fx: 517.306408
+  fy: 516.469215
+  cx: 318.643040
+  cy: 255.313989
+  # Distortion coefficients: [k1, k2, p1, p2, k3]
+  # distortion: [0.262383, -0.953104, -0.005358, 0.002628, 1.163314]
+  depth_scale: 5000.
+  depth_th: 15. # in m
+  target_res: [336, 504]  # H, W
+  # crop_edge: -1

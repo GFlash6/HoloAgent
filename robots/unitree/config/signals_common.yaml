@@ -1,0 +1,40 @@
+# signals_common.yaml — robot 级通用 signal 注册表（g1）
+# 包含跨 map 不变的 arm skill 与 nav command
+# map 级 signals.yaml 中定义 waypoint，可以增量覆盖这里的任何 key
+#
+# Schema:
+#   signals.<name>:
+#     description:  给 LLM 的语义说明（供 WaypointNavSkill.md 引用）
+#     chat_id:      int (可选) — DRobot 服务器分配给该事件的播报音频 chat_id
+#     action:
+#       type:       waypoint | arm_skill | nav_command
+#       skill:      (arm_skill 专用) arm 模块技能名
+#       command:    (nav_command 专用) cancel
+#       points:     (waypoint 专用) list of {x, y, yaw, name}
+
+robot: g1
+
+signals:
+  stop:
+    description: "停止当前导航任务"
+    action:
+      type: nav_command
+      command: cancel
+
+  grab_hello_action:
+    description: "打招呼挥手动作（说你好/握手/挥手问候）"
+    action:
+      type: arm_skill
+      skill: wave_above_head
+
+  wave_hands:
+    description: "挥手打招呼（与 grab_hello_action 同义，优先用 grab_hello_action）"
+    action:
+      type: arm_skill
+      skill: wave_above_head
+
+  wave_under_head:
+    description: "低头挥手道别"
+    action:
+      type: arm_skill
+      skill: wave_under_head

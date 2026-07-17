@@ -1,0 +1,35 @@
+session_datetime: '20260713_125706'
+session_dir: /workspace/D-Robotics/agentic_robot_system/agentic_robot/agentOS/sandbox_test/output/multi_robot_20260713_125706
+mode: multi_robot
+dry_run: true
+created_at: '2026-07-13T12:57:06.685586'
+status: dry_run_completed
+validation_conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+execution_conclusion: 当前为 dry-run，仅完成虚拟执行验证，未触发真实物理执行
+events:
+- timestamp: '2026-07-13T12:57:06.687787'
+  event_type: instruction_received
+  payload:
+    instruction: 11机器和12机器同时去点位1，11机器到达后高挥手打招呼，12机器到达后和用户击掌，全部完成后同时挥手再见，然后回到点位2
+- timestamp: '2026-07-13T12:57:12.591402'
+  event_type: dag_generated
+  payload:
+    node_count: 8
+    description: 11/12 并行到点位1；11 到达后挥手；12 到达后击掌；全部完成后并行挥手再见；最后并行回点位2
+- timestamp: '2026-07-13T12:57:12.598538'
+  event_type: virtual_validation_completed
+  payload:
+    status: passed
+    conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+- timestamp: '2026-07-13T12:57:12.602145'
+  event_type: physical_execution_skipped
+  payload:
+    recorded_at: '2026-07-13T12:57:12.600190'
+    status: skipped
+    conclusion: 当前为 dry-run，仅完成虚拟执行验证，未触发真实物理执行
+    executed_nodes: []
+subtasks: []
+artifacts:
+  dag_plan: /workspace/D-Robotics/agentic_robot_system/agentic_robot/agentOS/sandbox_test/output/multi_robot_20260713_125706/dag_plan.yaml
+  virtual_validation: /workspace/D-Robotics/agentic_robot_system/agentic_robot/agentOS/sandbox_test/output/multi_robot_20260713_125706/virtual_validation.yaml
+  execution_result: /workspace/D-Robotics/agentic_robot_system/agentic_robot/agentOS/sandbox_test/output/multi_robot_20260713_125706/execution_result.yaml

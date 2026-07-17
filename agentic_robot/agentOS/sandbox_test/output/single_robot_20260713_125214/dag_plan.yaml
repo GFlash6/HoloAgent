@@ -1,0 +1,40 @@
+instruction: 11机器先去点位1，到了以后高挥手打招呼，然后去点位2和用户击掌，最后回到点位3并转身挥手再见
+recorded_at: '2026-07-13T12:52:22.702392'
+dag:
+  description: 11 机器串行执行导航、打招呼、导航、击掌、导航、转身挥手再见
+  nodes:
+  - id: r11_nav_p1
+    robot_id: 11
+    skill: navigation
+    target: one_point_1
+    depends_on: []
+  - id: r11_wave_greet
+    robot_id: 11
+    skill: arm
+    target: wave_above_head
+    depends_on:
+    - r11_nav_p1
+  - id: r11_nav_p2
+    robot_id: 11
+    skill: navigation
+    target: one_point_2
+    depends_on:
+    - r11_wave_greet
+  - id: r11_high_five
+    robot_id: 11
+    skill: arm
+    target: high_five
+    depends_on:
+    - r11_nav_p2
+  - id: r11_nav_p3
+    robot_id: 11
+    skill: navigation
+    target: one_point_3
+    depends_on:
+    - r11_high_five
+  - id: r11_turn_back_wave_bye
+    robot_id: 11
+    skill: arm
+    target: turn_back_wave
+    depends_on:
+    - r11_nav_p3

@@ -1,0 +1,51 @@
+# signals.yaml — hexfellow sh3_520 地图航点配置
+# 地图文件: /home/workspace/test_map/all_maps/sh3_520/map/grid_map.yaml
+#
+# TODO: 首次运行后在 RViz 中读取实际坐标，替换 x/y/yaw 的占位值。
+#       步骤：
+#         1. 启动完整 stack（start_all.sh）
+#         2. 在 RViz 里用 "2D Nav Goal" 点击目标点，观察 Terminal 里打印的坐标
+#            或执行: ros2 topic echo /pose --once  来获取 base_link 当前位置
+#         3. 把实际 x / y / yaw 值填入下面对应的 name 条目
+#
+# 坐标系：map frame（单位：米，yaw 单位：弧度）
+
+map: sh3_520
+
+signals:
+  standard_begin_point:
+    description: "到达初始位置 / 去原点 / go to standard begin point"
+    chat_id: -102
+    action:
+      type: waypoint
+      points:
+        - { x: 0.973, y: -0.444, yaw: 0.223, name: sh3_520_standard_begin_point }
+
+  pickup_basket_point:
+    description: "去拿洗衣篮 / 去洗衣篮 / go to pickup basket point"
+    chat_id: -102
+    action:
+      type: waypoint
+      points:
+        - { x: 2.694, y: 0.112, yaw: 0.223, name: sh3_520_pickup_basket_init }
+        - { x: 3.24, y: 0.230, yaw: 0.215, name: sh3_520_pickup_basket_point }
+
+  place_basket_point:
+    description: "去放洗衣篮 / go to place basket point"
+    chat_id: -105
+    action:
+      type: waypoint
+      points:
+        - { x: 2.824, y: 0.128, yaw: -1.28, name: sh3_520_pickup_basket_retreat }
+        - { x: 5.796, y: -12.789, yaw: -2.93, name: sh3_520_place_basket_init }
+        - { x: 5.664, y: -12.823, yaw: -2.92, name: sh3_520_place_basket_point }
+
+  fold_clothes_point:
+    description: "去叠衣服 / go to fold clothes point"
+    chat_id: -105
+    action:
+      type: waypoint
+      points:
+        - { x: 5.633, y: -11.987, yaw: -2.93, name: sh3_520_place_basket_retreat }
+        - { x: 4.390, y: -12.065, yaw: -1.398, name: sh3_520_fold_clothes_init }
+        - { x: 4.550, y: -12.481, yaw: -1.369, name: sh3_520_fold_clothes_point }

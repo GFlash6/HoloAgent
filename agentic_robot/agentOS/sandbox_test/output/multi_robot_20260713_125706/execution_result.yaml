@@ -1,0 +1,4 @@
+recorded_at: '2026-07-13T12:57:12.600190'
+status: skipped
+conclusion: 当前为 dry-run，仅完成虚拟执行验证，未触发真实物理执行
+executed_nodes: []

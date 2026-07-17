@@ -1,0 +1,23 @@
+# signals.yaml — ic4f_demo_map 地图航点配置（g1）
+# 加载时与 signals_common.yaml 合并，此处 key 会覆盖 common 中同名 key
+#
+# 坐标系：map frame (x, y in meters, yaw in radians)
+
+map: ic4f_demo_map
+
+signals:
+  one_point_1:
+    description: "去点位1 / 去调试点位"
+    chat_id: -102
+    action:
+      type: waypoint
+      points:
+        - { x: -5.73, y: -3.22, yaw: 3.10, name: one_point_1_waypoint_1 }
+
+  one_point_2:
+    description: "回家 / 回起点"
+    chat_id: -105
+    action:
+      type: waypoint
+      points:
+        - { x: 0.0, y: 0.0, yaw: 0.0, name: go_home }

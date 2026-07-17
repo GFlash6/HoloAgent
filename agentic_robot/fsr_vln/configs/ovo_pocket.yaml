@@ -1,0 +1,44 @@
+project_name: ovo
+checkpoint_path: null
+use_wandb: False
+device: cuda:3
+frame_limit: -1 # for debugging, set to -1 to disable
+seed: 0
+slam:
+  config_path: configs/slam
+  slam_module: vanilla #gaussian_slam #orbslam2 # common
+  use_viewer: False # only used with orbslam2
+  close_loops: True # only used with orbslam2
+vis:
+  stream: False
+  show_stream: False # this is going to be ignored if stream is false
+mapping:
+  map_every: 1 #1 for sh3f 2 for ic3f/ic4f/ic7f
+semantic:
+  segment_every: 2 # 2 for sh3f, 4 for ic3f/ic4f/ic7f
+  use_gt_masks: False
+  use_gt_clips: False
+  match_distance_th: 0.05 #0.01
+  track_th: 100 #100
+  depth_filter: True 
+  log: True
+  use_ram_groundingdino_sam2: False
+  sam:
+    precomputed: False
+    multi_crop: True
+    points_per_side: 16
+    sam_ckpt_path: "${HOLOAGENT_DATA_ROOT}/VLN/vln_tmp/mapdsg/checkpoints/sam2"
+    mask_res: 384
+    sam_version: "2.1"
+    sam_encoder: "hiera_l"
+    masks_base_path: "replica_384_sam2.1"
+
+  clip:
+    use_half: True
+    embed_type: fixed_weights #fixed_weights 
+    model_card: SigLIP-384 #ViT-H-14 #
+    k_top_views: 10
+kf_queue_delay: 10
+min_points_th: 10
+min_track_frames_th: 2
+

@@ -1,0 +1,137 @@
+{
+    "audio_device":{
+        "device_name": "USB Audio Device",
+        "channels": 1,
+        "chunk_size": 512
+    },
+    "asr":{
+        "app_id": "xxxx",
+        "access_key": "xxxx",
+        "end_window_size": 600,
+        "rate": 44100,
+        "seg_duration": 200,
+        "url": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
+    },
+    "tts":{
+        "app_id": "xxxx",
+        "access_key": "xxxx",
+        "voice_type": "zh_male_m191_uranus_bigtts",
+        "resource_id": "seed-tts-2.0",
+        "endpoint": "wss://openspeech.bytedance.com/api/v3/tts/bidirection"
+    },
+    "llm":{
+        "llm_doubao_model": "doubao-seed-2-0-lite-260215",
+        "ark_api_key": "xxxx",
+        "ark_base_url": "https://ark.cn-beijing.volces.com/api/v3"
+    },
+    "work_dir": "~/.config/g1",
+    "language": "zh",
+    "wake_up_text": "地瓜地瓜",
+    "sleep_text": "再见",
+    "system_prompt_zh_path":"~/.config/g1/g1_system_prompt_zh.txt",
+    "system_prompt_en_path":"~/.config/g1/g1_system_prompt_en.txt",
+    "hooks":{
+        "wake_sleep_hooks": [
+            
+            {
+                "name": "wake_up",
+                "order": 1,
+                "response_zh": "我在我在, 我是地瓜君, 有什么可以帮你的吗?",
+                "response_en": "I'm here,  I'm your robot guide. How can I help you?",
+                "signal": "signal:none"
+            },
+            {
+                "name": "sleep",
+                "order": 2,
+                "response_zh": "再见,我要休息了",
+                "response_en": "Goodbye, have a nice day!",
+                "signal": "signal:wave_under_head"
+            }
+        ],
+        "asr_hooks": [
+            {
+                "name": ["停止"],
+                "relate": "and",
+                "order": 1,
+                "response_zh": "好的, 我要停止了",
+                "response_en": "OK, I'm stopping",
+                "signal": "signal:stop"
+            },
+            {
+                "name": ["进电梯"],
+                "relate": "and",
+                "order": 2,
+                "response_zh": "好的, 我要进电梯了",
+                "response_en": "OK, I'm going to the elevator",
+                "signal": "signal:enter_elevator"
+            },
+            {
+                "name": ["出电梯"],
+                "relate": "and",
+                "order": 3,
+                "response_zh": "好的, 我要出电梯了",
+                "response_en": "OK, I'm leaving the elevator",
+                "signal": "signal:leave_elevator"
+            },
+            {
+                "name": ["切换8楼地图","切换八楼地图"],
+                "relate": "or",
+                "order": 4,
+                "response_zh": "好的, 我要切换8楼地图了",
+                "response_en": "OK, I'm switching to the 8th floor map",
+                "signal": "signal:switch_8th_floor_map"
+            },
+            {
+                "name": ["切换4楼地图", "切换四楼地图"],
+                "relate": "or",
+                "order": 6,
+                "response_zh": "好的, 我要切换4楼地图了",
+                "response_en": "OK, I'm switching to the 4th floor map",
+                "signal": "signal:switch_4th_floor_map"
+            },
+            {
+                "name": ["继续寻找目标点"],
+                "relate": "and",
+                "order": 7,
+                "response_zh": "好的, 我要继续寻找目标点了",
+                "response_en": "OK, I'm continuing to find the target point",
+                "signal": "signal:continue_find_target_point"
+            },
+            {
+                "name": ["watch", "demo"],
+                "relate": "and",
+                "order": 9,
+                "response_zh": "好的, 我要带你去看HoloMotion和HoloBrain表演了",
+                "response_en": "No problem, please follow me.",
+                "signal": "signal:watch_demo"
+            },
+            {
+                "name": ["回", "地图起点"],
+                "relate": "and",
+                "order": 10,
+                "response_zh": "好的, 我要带你回地图起点了",
+                "response_en": "No problem, please follow me.",
+                "signal": "signal:custom_one_point_1_0.0_0.0_0.0"
+            }
+        ],
+        "location_hooks": [
+            {
+                "name": ["机器人实验室"],
+                "relate": "and",
+                "order": 1,
+                "response_zh": "好的, 我要带你去机器人实验室了",
+                "response_en": "No problem, please follow me.",
+                "signal": "signal:none"
+            }
+        ],
+        "control_hooks": {
+            "one_point_1_waypoint_1":{
+                "response_zh": "好的, 我已经到导航点了",
+                "response_en": "I'm at the navigation point."
+            }
+        },
+        "control_signals": [
+            "one_point_1_waypoint_1"
+        ]
+    }
+}

@@ -1,0 +1,32 @@
+/**:
+  ros__parameters:
+    relo:
+        # priorDir: "/workspace/hts_demo_maps/ic5f_map/map"
+        # priorDir: "/workspace/hts_demo_maps/nianhui_map/map"
+        priorDir: "/workspace/hts_demo_maps/ic4f_demo_map/map"
+        cloudTopic: "/undistort_cloud"
+        poseTopic: "/aft_mapped_to_init"
+        searchDis: 2.0
+        searchNum: 1  
+        trustDis: 5.0
+        localmap_res: 0.30 # local map voxel size
+        currentcloud_res: 0.20  # current cloud voxel size
+        robot_name: "g1"
+        extrinsic_T: [0.0, 0.0, 0.0] # lidar to base_link
+        extrinsic_R: [1.0, 0.0, 0.0,
+                    0.0, -1.0, 0.0,
+                    0.0, 0.0, -1.0]
+        relo_interval: 20 # the reloc interval , 10 is recommended
+        sc_init_enable: false # sc初始化
+        external_flg: true # 手动初始化
+        reg_mode: 0 # 0: PCL NDT, 1: PCL ICP 2: GPU NDT, 3: GPU VGICP 
+        init_cloud_num: 6 # 初始化点云帧数
+        accum_enable: false
+        accum_window_size: 1
+        # initpose_prior: [2.35, -1.9, 0.0]  # Default x, y, yaw for nianhui_map near me corner
+        initpose_prior: [0.0, 0.0, 0.0]  # Default x, y, yaw for ic4f_demo_map near me corner
+        # initpose_prior: [-0.627487, -2.23759, 0.75517]  # Default x, y, yaw for ic3f_map g1-origin
+        enable_prior_pose: true  # Use prior pose if true, otherwise wait for manual initialization
+        ndt_score_threshold: 0.35
+
+

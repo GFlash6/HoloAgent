@@ -1,0 +1,10 @@
+dataset_name: "replica"
+cam:
+  H: 680
+  W: 1200
+  fx: 600.0
+  fy: 600.0
+  cx: 599.5
+  cy: 339.5
+  depth_scale: 6553.5
+  target_res: [336, 504]  # H, W

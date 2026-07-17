@@ -1,0 +1,55 @@
+# signals.yaml — nianhui（年会）地图航点配置（g1）
+# 坐标来源：pubpose.py 原 nianhui_map 注释段（2026-05 迁移）
+# 加载时与 signals_common.yaml 合并，此处 key 会覆盖 common 中同名 key
+#
+# 坐标系：map frame (x, y in meters, yaw in radians)
+
+map: nianhui
+
+signals:
+  one_point_1:
+    description: "去展区 / 去舞台 / 去看跳舞"
+    chat_id: -102
+    action:
+      type: waypoint
+      points:
+        - { x: 22.38, y: 1.70, yaw: -1.70, name: nianhui_stage }
+
+  one_point_2:
+    description: "回家 / 回起点"
+    chat_id: -105
+    action:
+      type: waypoint
+      points:
+        - { x: 39.8, y: -1.38, yaw: 0.0, name: nianhui_home }
+
+  one_point_3:
+    description: "去活动区（反向朝向）"
+    action:
+      type: waypoint
+      points:
+        - { x: 22.38, y: 1.70, yaw: 3.14, name: nianhui_activity_rev }
+
+  one_point_4:
+    description: "去活动区（正向朝向）"
+    action:
+      type: waypoint
+      points:
+        - { x: 22.38, y: 1.70, yaw: 0.0, name: nianhui_activity_fwd }
+
+  multi_point_1:
+    description: "多点巡航：先去反向展示区再去正向展示区"
+    chat_id: -103
+    action:
+      type: waypoint
+      points:
+        - { x: 22.38, y: 1.70, yaw:  3.14, name: multi_point_1_wp1 }
+        - { x: 22.38, y: 1.70, yaw: -1.70, name: multi_point_1_wp2 }
+
+  multi_point_2:
+    description: "多点巡航：先去活动区再回家"
+    action:
+      type: waypoint
+      points:
+        - { x: 22.38, y: 1.70,  yaw: 0.0, name: multi_point_2_wp1 }
+        - { x: 39.8,  y: -1.38, yaw: 0.0, name: multi_point_2_wp2 }

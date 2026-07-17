@@ -1,0 +1,12 @@
+dataset_name: "pocket"
+scenes: ["sh3f_s9000"]
+cam: 
+  H: 518 
+  W: 640
+  fx: 220.15379333496094
+  fy: 219.88140869140625
+  cx: 307.0907897949219
+  cy: 258.309326171875
+  depth_scale: 1000.
+  depth_th: 10. # in m
+
