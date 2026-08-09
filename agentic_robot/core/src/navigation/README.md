@@ -132,7 +132,7 @@ It also publishes execution result notifications such as `waypoint_reached`.
 
 `nav_executor_node` supports the following ROS parameters:
 
-- `robot_name`: Robot name. Default: `g1`
+- `robot_name`: Robot config directory name. Default: `unitree`
 - `map_name`: Map name. Default: empty string
 - `signals_base_dir`: Root directory of the signals YAML files. Default: auto-detected
 

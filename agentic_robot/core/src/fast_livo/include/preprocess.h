@@ -154,6 +154,7 @@ class Preprocess {
   void Pandar128_handler(
       const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
   void l515_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void xyz32_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
   void give_feature(PointCloudXYZI &pl, vector<orgtype> &types);
   void pub_func(PointCloudXYZI &pl, const rclcpp::Time &ct);
   int plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i,

@@ -61,7 +61,7 @@ Expected baseline:
 - CUDA-capable GPU for perception and semantic mapping workflows
 - Hardware-specific drivers for the selected robot, camera, IMU, LiDAR, and actuator stack
 
-Important external dependencies include `livox_ros_driver2`, GTSAM, PCL, OpenCV, Eigen, `cv_bridge`, and `image_transport`. Some workflows also require ZED, Unitree, HexFellow, OpenAI/Azure OpenAI, model weights, and local map/data assets.
+Important external dependencies include `livox_ros_driver2`, GTSAM, PCL, OpenCV, Eigen, `cv_bridge`, and `image_transport`. Some workflows also require ZED, Unitree, HexFellow, Qwen Model Studio, model weights, and local map/data assets.
 
 Model weights, generated outputs, build artifacts, and local deployment configs are intentionally not tracked in this repository.
 
@@ -197,17 +197,16 @@ Runtime-specific values should be provided through environment variables or loca
 - `CONTROL_URL`
 - `ROBOT_11_URL` through `ROBOT_16_URL`
 - `EXPECTED_ROBOTS`
-- `OPENAI_API_KEY`
-- `AZURE_OPENAI_API_KEY`
-- `AZURE_OPENAI_ENDPOINT`
-- `AZURE_OPENAI_DEPLOYMENT`
+- `QWEN_API_KEY`
+- `QWEN_MODEL` (optional, defaults to `qwen3.7-plus`)
+- `QWEN_BASE_URL` (optional)
 - `HOLOAGENT_DATA_ROOT`
 
 If chatbot voice interaction is required, also configure:
 
-- `CHATBOT_ARK_API_KEY`
-- `CHATBOT_ASR_APP_KEY`
-- `CHATBOT_ASR_ACCESS_KEY`
+- `QWEN_API_KEY`
+- `QWEN_ASR_MODEL` (optional, defaults to `qwen3-asr-flash-realtime`)
+- `QWEN_ASR_URL` (optional)
 - `CHATBOT_TTS_APP_KEY`
 - `CHATBOT_TTS_ACCESS_KEY`
 
@@ -259,4 +258,3 @@ Some HoloAgent demos rely on foundation models from HorizonRobotics. Two directl
 ### HoloMotion
 
 [HoloMotion](https://horizonrobotics.github.io/robot_lab/holomotion/) is a foundation model for whole-body humanoid control. It is used in G1-related demos for robust whole-body motion tracking and provides an end-to-end workflow covering motion data, training, evaluation, and real-robot deployment. See the [open-source repository](https://github.com/HorizonRobotics/HoloMotion) for more information.
-

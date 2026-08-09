@@ -14,6 +14,7 @@ find_package(geometry_msgs REQUIRED)
 #find_package(tf2_ros REQUIRED)
 #find_package(tf2 REQUIRED)
 find_package(unitree_sdk2)
+include_directories(/usr/local/include/ddscxx)
 
 # 创建可执行文件
 add_executable(g1_getvel_node src/getvel.cpp)

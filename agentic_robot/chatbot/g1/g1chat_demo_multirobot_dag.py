@@ -31,7 +31,7 @@ from typing import Dict, List, Optional, Set
 import requests
 import rclpy
 import yaml
-from openai import AzureOpenAI, OpenAI
+from openai import DefaultHttpxClient, OpenAI
 from rclpy.node import Node
 from std_msgs.msg import String
 
@@ -174,43 +174,21 @@ class G1ChatNode(Node):
             "MULTI_ROBOT_CONTROL_CENTER_URL", "http://127.0.0.1:8080"
         ).rstrip("/")
 
-        # GPT 客户端初始化（参考 gpt_vision.py，兼容 OpenAI / Azure OpenAI）
-        gpt_provider = os.getenv("GPT_PROVIDER", "azure").strip().lower()
-        gpt_api_key = (
-            os.getenv("AZURE_OPENAI_API_KEY")
-            if gpt_provider == "azure"
-            else os.getenv("OPENAI_API_KEY")
+        qwen_api_key = os.getenv("QWEN_API_KEY")
+        if not qwen_api_key:
+            raise RuntimeError("未配置 QWEN_API_KEY")
+        self.gpt_model = os.getenv("QWEN_MODEL", "qwen3.7-plus")
+        self.client = OpenAI(
+            api_key=qwen_api_key,
+            base_url=os.getenv(
+                "QWEN_BASE_URL",
+                "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            ),
+            http_client=DefaultHttpxClient(
+                proxy=os.getenv("HTTPS_PROXY") or os.getenv("https_proxy"),
+                trust_env=False,
+            ),
         )
-        if not gpt_api_key:
-            raise RuntimeError(
-                "未配置 GPT API Key，请设置 AZURE_OPENAI_API_KEY 或 OPENAI_API_KEY"
-            )
-
-        if gpt_provider == "azure":
-            azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-            if not azure_endpoint:
-                raise RuntimeError(
-                    "未配置 Azure Endpoint，请设置 AZURE_OPENAI_ENDPOINT"
-                )
-
-            azure_api_version = os.getenv(
-                "AZURE_OPENAI_API_VERSION", "2024-02-15-preview"
-            )
-            self.gpt_model = os.getenv(
-                "AZURE_OPENAI_DEPLOYMENT",
-                os.getenv("AZURE_OPENAI_MODEL", "gpt-4o"),
-            )
-            self.client = AzureOpenAI(
-                azure_endpoint=azure_endpoint,
-                api_key=gpt_api_key,
-                api_version=azure_api_version,
-            )
-        else:
-            self.gpt_model = os.getenv("OPENAI_MODEL", "gpt-4o")
-            self.client = OpenAI(
-                api_key=gpt_api_key,
-                base_url=os.getenv("OPENAI_BASE_URL") or None,
-            )
 
         self._supported_navigation_targets = {
             "one_point_1",
@@ -457,7 +435,7 @@ class G1ChatNode(Node):
     # -------------------- LLM DAG 规划 --------------------
 
     def _analyze_user_command(self, user_text: str) -> Optional[dict]:
-        """使用 GPT 将用户指令拆解为多机 DAG。"""
+        """使用 Qwen 将用户指令拆解为多机 DAG。"""
         system_prompt = f"""
 你是一个多机器人任务规划器。你的职责是把用户自然语言指令转换为一个可执行 DAG(JSON)。
 
@@ -531,13 +509,13 @@ class G1ChatNode(Node):
                             content += text_value
 
             if not content:
-                self.get_logger().warning("GPT 返回内容为空。")
+                self.get_logger().warning("Qwen 返回内容为空。")
                 return None
 
             dag = json.loads(content)
             return self._validate_and_normalize_dag(dag)
         except Exception as exc:
-            self.get_logger().error(f"GPT DAG 规划失败: {exc}")
+            self.get_logger().error(f"Qwen DAG 规划失败: {exc}")
             return None
 
     def _validate_and_normalize_dag(self, dag: dict) -> Optional[dict]:

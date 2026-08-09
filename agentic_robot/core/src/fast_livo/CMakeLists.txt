@@ -12,6 +12,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Ubuntu's binary PCL packages use Eigen's 16-byte alignment ABI.  Keep all
+# template code instantiated here ABI-compatible even when -march=native
+# enables AVX-512 and Eigen would otherwise select 64-byte alignment.
+add_definitions(-DEIGEN_MAX_ALIGN_BYTES=16)
+
 IF("$ENV{ROS_DISTRO}" STRLESS "iron")
   add_definitions(-DPRE_ROS_IRON)
 ENDIF()
@@ -38,9 +43,10 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|aarch64|ARM|AARCH64)")
   endif()
   add_definitions(-DARM_ARCH)
 else()
-  # x86-64 (Intel/AMD) optimizations
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native -mtune=native -funroll-loops") #-flto
-  message(STATUS "Using general x86 optimizations: -O3 -march=native -mtune=native -funroll-loops") 
+  # Keep Eigen's ABI compatible with Ubuntu's binary PCL packages.  On AVX-512
+  # hosts, -march=native changes Eigen's dynamic alignment from 16 to 64 bytes.
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -mtune=native -funroll-loops") #-flto
+  message(STATUS "Using ABI-safe x86 optimizations: -O3 -mtune=native -funroll-loops")
   add_definitions(-DX86_ARCH)
 endif()
 
@@ -69,13 +75,22 @@ else()
 endif()
 
 # Check for CUDA support
-find_package(CUDA)
-if(CUDA_FOUND)
+option(FAST_LIVO_ENABLE_CUDA "Build FAST-LIVO CUDA relocalization support" OFF)
+option(FAST_LIVO_ENABLE_ASAN "Build FAST-LIVO with AddressSanitizer" OFF)
+if(FAST_LIVO_ENABLE_ASAN)
+  add_compile_options(-O0 -fsanitize=address -fno-omit-frame-pointer)
+  add_definitions(-DEIGEN_MALLOC_ALREADY_ALIGNED=1)
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=address")
+endif()
+if(FAST_LIVO_ENABLE_CUDA)
+  find_package(CUDA REQUIRED)
   message(STATUS "CUDA found")
   enable_language(CUDA)
   add_definitions(-DCUDA_EN)
+  set(BUILD_VGICP_CUDA ON CACHE BOOL "Build GPU-powered VGICP" FORCE)
 else()
-  message(STATUS "CUDA not found")
+  message(STATUS "CUDA support disabled")
 endif()
 
 # Check for OpenMP support
@@ -117,7 +132,7 @@ find_package(vikit_ros REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(PCL 1.15.0 REQUIRED)
+find_package(PCL REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Sophus REQUIRED)
 find_package(Boost REQUIRED COMPONENTS)
@@ -353,6 +368,33 @@ ament_export_dependencies(
 )
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
   ament_lint_auto_find_test_dependencies()
+
+  ament_add_gtest(test_reloc_map_loading test/test_reloc_map_loading.cpp)
+  if(TARGET test_reloc_map_loading)
+    target_link_libraries(test_reloc_map_loading
+      incremental_mapping
+      ${COMMON_DEPENDENCIES}
+      ${PCL_LIBRARIES}
+      gtsam
+      stdc++fs
+      "${cpp_typesupport_target}"
+    )
+    ament_target_dependencies(test_reloc_map_loading ${dependencies})
+  endif()
+
+  ament_add_gtest(test_preprocess_xyz32 test/test_preprocess_xyz32.cpp)
+  if(TARGET test_preprocess_xyz32)
+    target_link_libraries(test_preprocess_xyz32 pre ${PCL_LIBRARIES} gtsam)
+    ament_target_dependencies(test_preprocess_xyz32 ${dependencies})
+  endif()
+
+  ament_add_gtest(test_eigen_pcl_alignment test/test_eigen_pcl_alignment.cpp)
+
+  ament_add_gtest(test_ndt_target_validation test/test_ndt_target_validation.cpp)
+  if(TARGET test_ndt_target_validation)
+    target_link_libraries(test_ndt_target_validation ${PCL_LIBRARIES})
+  endif()
 endif()
 ament_package()

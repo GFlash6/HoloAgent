@@ -50,6 +50,8 @@ def _expand_env(value: str, extras: dict | None = None) -> str:
 
     def _replace(m):
         var, _, default = m.group(1).partition(":-")
+        if var.startswith("msg."):
+            return m.group(0)
         return extras.get(var, os.environ.get(var, default))
 
     return re.sub(r"\$\{([^}]+)\}", _replace, str(value))
@@ -195,7 +197,7 @@ def build_fastapi_app(ros_node: RobotBridgeNode, config: dict) -> FastAPI:
 
         # Closure to capture loop variables
         def _make_handler(r_type, r_name, m_type, b_spec):
-            async def _handler(request: Request, **path_kwargs):
+            async def _handler(request: Request):
                 try:
                     json_body = {}
                     try:
@@ -205,7 +207,7 @@ def build_fastapi_app(ros_node: RobotBridgeNode, config: dict) -> FastAPI:
 
                     if r_type == "topic":
                         msg = _build_msg(
-                            m_type, b_spec, path_kwargs, json_body)
+                            m_type, b_spec, request.path_params, json_body)
                         ok = ros_node.publish_to_topic(r_name, msg)
                         if not ok:
                             raise HTTPException(
@@ -296,10 +298,13 @@ def main(args=None):
 
     ros_node.get_logger().info(
         f"robot_bridge HTTP server starting on {host}:{port}")
-    uvicorn.run(app, host=host, port=port, log_level="info")
-
-    ros_node.destroy_node()
-    rclpy.shutdown()
+    try:
+        uvicorn.run(app, host=host, port=port, log_level="info")
+    finally:
+        if rclpy.ok():
+            rclpy.shutdown()
+        ros_thread.join(timeout=2.0)
+        ros_node.destroy_node()
 
 
 if __name__ == "__main__":

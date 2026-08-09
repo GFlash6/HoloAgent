@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""豆包ASR测试脚本."""
+"""Qwen ASR 测试脚本."""
 
 import argparse
 import asyncio
 
 from audio.logging import default_logger as logger
 from audio.audio_device import AudioDevice
-from audio.volcengine_doubao_asr import AsrWsClient
+from audio.qwen_asr import AsrWsClient
 from audio.misc import realtime_audio_generator
 
 
@@ -36,7 +36,8 @@ async def test_realtime_asr(url: str, seg_duration: int, duration: int):
             audio_stream = realtime_audio_generator(
                 audio_device,
                 duration_seconds=duration,
-                chunk_duration_ms=seg_duration
+                chunk_duration_ms=seg_duration,
+                sample_rate=16000,
             )
 
             # 开始实时ASR识别，处理音频流
@@ -70,11 +71,11 @@ async def test_realtime_asr(url: str, seg_duration: int, duration: int):
 
 async def main():
     """主函数，解析命令行参数并执行相应的测试模式."""
-    parser = argparse.ArgumentParser(description="豆包ASR WebSocket客户端测试工具")
+    parser = argparse.ArgumentParser(description="Qwen ASR WebSocket客户端测试工具")
     parser.add_argument(
         "--url",
         type=str,
-        default="wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
+        default="wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=qwen3-asr-flash-realtime",
         help="WebSocket服务器URL")
     parser.add_argument("--seg_duration", type=int, default=200,
                         help="音频片段时长(毫秒), 默认: 200")

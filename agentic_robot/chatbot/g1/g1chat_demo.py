@@ -20,7 +20,7 @@ import time
 from queue import Empty, Queue
 
 import rclpy
-from openai import AzureOpenAI, OpenAI
+from openai import DefaultHttpxClient, OpenAI
 from rclpy.node import Node
 from std_msgs.msg import String
 
@@ -58,43 +58,21 @@ class G1ChatNode(Node):
             String, "waypoint_reached", self.waypoint_callback, 10
         )
 
-        # GPT 客户端初始化（参考 gpt_vision.py，兼容 OpenAI / Azure OpenAI）
-        gpt_provider = os.getenv("GPT_PROVIDER", "azure").strip().lower()
-        gpt_api_key = (
-            os.getenv("AZURE_OPENAI_API_KEY")
-            if gpt_provider == "azure"
-            else os.getenv("OPENAI_API_KEY")
+        qwen_api_key = os.getenv("QWEN_API_KEY")
+        if not qwen_api_key:
+            raise RuntimeError("未配置 QWEN_API_KEY")
+        self.gpt_model = os.getenv("QWEN_MODEL", "qwen3.7-plus")
+        self.client = OpenAI(
+            api_key=qwen_api_key,
+            base_url=os.getenv(
+                "QWEN_BASE_URL",
+                "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            ),
+            http_client=DefaultHttpxClient(
+                proxy=os.getenv("HTTPS_PROXY") or os.getenv("https_proxy"),
+                trust_env=False,
+            ),
         )
-        if not gpt_api_key:
-            raise RuntimeError(
-                "未配置 GPT API Key，请设置 AZURE_OPENAI_API_KEY 或 OPENAI_API_KEY"
-            )
-
-        if gpt_provider == "azure":
-            azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-            if not azure_endpoint:
-                raise RuntimeError(
-                    "未配置 Azure Endpoint，请设置 AZURE_OPENAI_ENDPOINT"
-                )
-
-            azure_api_version = os.getenv(
-                "AZURE_OPENAI_API_VERSION", "2024-02-15-preview"
-            )
-            self.gpt_model = os.getenv(
-                "AZURE_OPENAI_DEPLOYMENT",
-                os.getenv("AZURE_OPENAI_MODEL", "gpt-4o"),
-            )
-            self.client = AzureOpenAI(
-                azure_endpoint=azure_endpoint,
-                api_key=gpt_api_key,
-                api_version=azure_api_version,
-            )
-        else:
-            self.gpt_model = os.getenv("OPENAI_MODEL", "gpt-4o")
-            self.client = OpenAI(
-                api_key=gpt_api_key,
-                base_url=os.getenv("OPENAI_BASE_URL") or None,
-            )
 
         # 框架层面可兼容 HoloMotion / [motion_tracking, velocity_tracking] 相关能力，用于离线参考动作播放和底盘移动速度跟踪。
         # 当前开源版本默认对接宇树原生运控动作接口完成动作执行，和生成式HoloMoiton/HoloBrain的集成还在内测中。
@@ -162,10 +140,10 @@ class G1ChatNode(Node):
 
         asyncio.run(_main())
 
-    # -------------------- GPT 任务拆解 --------------------
+    # -------------------- Qwen 任务拆解 --------------------
 
     def _analyze_user_command(self, user_text: str):
-        """使用 GPT 将用户指令拆解为 relative_nav / motion_tracking 任务序列。"""
+        """使用 Qwen 将用户指令拆解为 relative_nav / motion_tracking 任务序列。"""
         system_prompt = """
 你是一个机器人任务拆解器。你只能把用户指令拆解为以下两类任务，并按顺序输出 JSON：
 
@@ -238,7 +216,7 @@ class G1ChatNode(Node):
                             content += text_value
 
             if not content:
-                self.get_logger().warning("GPT 返回内容为空。")
+                self.get_logger().warning("Qwen 返回内容为空。")
                 return []
 
             result = json.loads(content)
@@ -265,7 +243,7 @@ class G1ChatNode(Node):
 
             return valid_tasks
         except Exception as exc:
-            self.get_logger().error(f"GPT 指令拆解失败: {exc}")
+            self.get_logger().error(f"Qwen 指令拆解失败: {exc}")
             return []
 
     def _publish_unrecognized_command(self) -> None:
@@ -314,7 +292,7 @@ class G1ChatNode(Node):
             self._execute_tasks(tasks)
 
     def _execute_tasks(self, tasks) -> None:
-        """按顺序执行 GPT 拆解出的任务。"""
+        """按顺序执行 Qwen 拆解出的任务。"""
         if not tasks:
             self._publish_unrecognized_command()
             return

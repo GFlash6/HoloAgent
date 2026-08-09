@@ -16,13 +16,13 @@ from datetime import datetime
 from queue import Queue
 from typing import Optional
 import traceback
-from openai import OpenAI
+from openai import DefaultHttpxClient, OpenAI
 
 from audio.env import SETTINGS
 from audio.audio_device import AudioDevice
 from audio.logging import default_logger as logger
 from audio.misc import realtime_audio_generator, is_ws_connection_closed, create_websocket_connection
-from audio.volcengine_doubao_asr import AsrWsClient
+from audio.qwen_asr import AsrWsClient
 from audio.volcengine_doubao_tts import (
     EventType,
     MsgType,
@@ -38,19 +38,19 @@ AUDIO_DEVICE_NAME = SETTINGS["audio_device"]["device_name"]
 AUDIO_DEVICE_CHANNELS = SETTINGS["audio_device"]["channels"]
 AUDIO_DEVICE_CHUNK_SIZE = SETTINGS["audio_device"]["chunk_size"]
 
-ASR_APP_KEY = SETTINGS["asr"]["app_id"]
-ASR_APP_KEY = os.getenv("CHATBOT_ASR_APP_KEY", ASR_APP_KEY)
-ASR_ACCESS_KEY = SETTINGS["asr"]["access_key"]
-ASR_ACCESS_KEY = os.getenv("CHATBOT_ASR_ACCESS_KEY", ASR_ACCESS_KEY)
 SILENCE_TIMEOUT_MS = SETTINGS["asr"]["end_window_size"]   # 静音超时时间(毫秒)，默认600ms
-ASR_RATE = SETTINGS["asr"]["rate"]
 ASR_SEG_DURATION = SETTINGS["asr"]["seg_duration"]
-ASR_URL = SETTINGS["asr"]["url"]
+QWEN_ASR_MODEL = os.getenv("QWEN_ASR_MODEL", "qwen3-asr-flash-realtime")
+ASR_URL = os.getenv(
+    "QWEN_ASR_URL",
+    f"wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model={QWEN_ASR_MODEL}",
+)
 
-ARK_API_KEY = SETTINGS["llm"]["ark_api_key"]
-ARK_API_KEY = os.getenv("CHATBOT_ARK_API_KEY", ARK_API_KEY)
-ARK_BASE_URL = SETTINGS["llm"]["ark_base_url"]
-LLM_DOUBAO_MODEL = SETTINGS["llm"]["llm_doubao_model"]
+QWEN_API_KEY = os.getenv("QWEN_API_KEY", "")
+QWEN_BASE_URL = os.getenv(
+    "QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
+)
+QWEN_MODEL = os.getenv("QWEN_MODEL", "qwen3.7-plus")
 
 TTS_APP_KEY = SETTINGS["tts"]["app_id"]                # 豆包语音合成KEY
 TTS_APP_KEY = os.getenv("CHATBOT_TTS_APP_KEY", TTS_APP_KEY)
@@ -84,7 +84,7 @@ class G1Chat:
 
     - 语音输入：通过麦克风录音，由 ASR 实时识别
     - ASR: 识别结果放入队列，由流水线取出
-    - LLM: 调用豆包大模型生成回复
+    - LLM: 调用 Qwen 大模型生成回复
     - TTS: 将回复文本放入 TTS 队列
     - 播放: TTS 处理器将语音播放到扬声器
     """
@@ -105,9 +105,17 @@ class G1Chat:
         self.asr_chat_id = 1  # ASR chat_id 计数器，用于标识不同的识别会话
 
         # ========== LLM客户端配置 ==========
-        # 使用同步 OpenAI 客户端（与 doubao_llm 一致），在独立线程中拉流，首 token 延迟更低
+        if not QWEN_API_KEY:
+            raise RuntimeError("未配置 QWEN_API_KEY")
+        # 使用 Qwen 的 OpenAI 兼容接口，在独立线程中拉流以降低首 token 延迟
         self._sync_llm_client = OpenAI(
-            api_key=ARK_API_KEY, base_url=ARK_BASE_URL)
+            api_key=QWEN_API_KEY,
+            base_url=QWEN_BASE_URL,
+            http_client=DefaultHttpxClient(
+                proxy=os.getenv("HTTPS_PROXY") or os.getenv("https_proxy"),
+                trust_env=False,
+            ),
+        )
 
         # ========== TTS客户端配置 ==========
         self.tts_queue = Queue()  # TTS文本队列，存储待转换为语音的文本
@@ -163,7 +171,10 @@ class G1Chat:
         try:
             # 从音频设备持续获取音频数据，转换为WAV格式并分块发送
             audio_stream = realtime_audio_generator(
-                self.audio_device, chunk_duration_ms=self.asr_seg_duration)
+                self.audio_device,
+                chunk_duration_ms=self.asr_seg_duration,
+                sample_rate=16000,
+            )
         except Exception as e:
             logger.error(f"启动实时ASR失败: 创建实时音频生成器失败: {e}")
             logger.error(traceback.format_exc())
@@ -583,9 +594,9 @@ class G1Chat:
         def sync_stream():
             stream = self._sync_llm_client.chat.completions.create(
                 messages=self._messages,
-                model=LLM_DOUBAO_MODEL,
+                model=QWEN_MODEL,
                 stream=True,
-                extra_body={"thinking": {"type": "disabled"}},
+                extra_body={"enable_thinking": False},
             )
             for ch in stream:
                 loop.call_soon_threadsafe(chunk_async_queue.put_nowait, ch)

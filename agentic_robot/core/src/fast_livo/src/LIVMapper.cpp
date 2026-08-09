@@ -12,6 +12,9 @@ which is included as part of this source code package.
 
 #include "LIVMapper.h"
 
+#include <map>
+#include <tuple>
+
 #include <vikit/camera_loader.h>
 #define USE_CIRCLE_DRAW 1
 using namespace Sophus;
@@ -80,7 +83,7 @@ LIVMapper::LIVMapper(rclcpp::Node::SharedPtr &node, std::string node_name,
              const std::shared_ptr<fast_livo::srv::SaveMap::Request> req,
              std::shared_ptr<fast_livo::srv::SaveMap::Response> res) -> void {
     (void)request_header;
-    saveKeyFrame();
+    res->success = saveKeyFrame(req->destination, req->resolution);
   };
 
   srvSaveMap = this->node->create_service<fast_livo::srv::SaveMap>(
@@ -656,6 +659,15 @@ void LIVMapper::stateEstimationAndMapping() {
     case LIO:
     case LO: {
       handleLIO();
+      if (pcd_save_en) {
+        getCurPose(_state);
+        if (enable_gtsam) {
+          saveKeyFramesAndFactor();
+          correctPoses();
+        } else {
+          saveLioKeyFrame();
+        }
+      }
       break;
     }
   }
@@ -1014,6 +1026,47 @@ void LIVMapper::saveKeyFramesAndFactor() {
   surfCloudKeyFrames.emplace_back(thisSurfKeyFrame);
 
   // updatePath(thisPose6D);  // 可视化update后的最新位姿
+}
+
+bool LIVMapper::saveLioKeyFrame() {
+  if (saveFrame() == false) return false;
+
+  const int keyframe_idx = cloudKeyPoses3D->size();
+  gtsam::Pose3 poseTo = trans2gtsamPose(transformTobeMapped);
+  if (keyframe_idx == 0) {
+    writeVertex(0, poseTo, vertices_str);
+    std::cout << "First LIO keyframe" << std::endl;
+  } else {
+    gtsam::Pose3 poseFrom = pclPointTogtsamPose3(cloudKeyPoses6D->points.back());
+    gtsam::Pose3 relPose = poseFrom.between(poseTo);
+    writeVertex(keyframe_idx, poseTo, vertices_str);
+    writeEdge({keyframe_idx - 1, keyframe_idx}, relPose, edges_str);
+    std::cout << "Now is LIO keyframe" << std::endl;
+  }
+
+  PointTypeXYZI thisPose3D;
+  thisPose3D.x = transformTobeMapped[3];
+  thisPose3D.y = transformTobeMapped[4];
+  thisPose3D.z = transformTobeMapped[5];
+  thisPose3D.intensity = keyframe_idx;
+  cloudKeyPoses3D->emplace_back(thisPose3D);
+
+  PointTypePose thisPose6D;
+  thisPose6D.x = thisPose3D.x;
+  thisPose6D.y = thisPose3D.y;
+  thisPose6D.z = thisPose3D.z;
+  thisPose6D.roll = transformTobeMapped[0];
+  thisPose6D.pitch = transformTobeMapped[1];
+  thisPose6D.yaw = transformTobeMapped[2];
+  thisPose6D.intensity = keyframe_idx;
+  thisPose6D.time = LidarMeasures.measures.empty() ? last_timestamp_lidar : LidarMeasures.measures.back().vio_time;
+  cloudKeyPoses6D->emplace_back(thisPose6D);
+
+  pcl::PointCloud<PointTypeXYZI>::Ptr thisSurfKeyFrame(new pcl::PointCloud<PointTypeXYZI>());
+  pcl::copyPointCloud(*pcl_body_wait_pub, *thisSurfKeyFrame);
+  PointCloudXYZI().swap(*pcl_body_wait_pub);
+  surfCloudKeyFrames.emplace_back(thisSurfKeyFrame);
+  return true;
 }
 // 更新里程计轨迹
 void LIVMapper::updatePath(const PointTypePose &pose_in) {
@@ -1667,11 +1720,34 @@ void LIVMapper::saveOptimizedVerticesKITTIformat(gtsam::Values _estimates,
            << " " << t.z() << std::endl;
   }
 }
-void LIVMapper::saveKeyFrame() {
+
+void LIVMapper::savePosesKITTIformat(const std::vector<PointTypePose> &poses,
+                                     const std::string &filename) {
+  std::fstream stream(filename.c_str(), std::fstream::out);
+  for (const auto &pose : poses) {
+    const Eigen::Affine3f transform = pclPointToAffine3f(pose);
+    const Eigen::Matrix4f matrix = transform.matrix();
+    stream << matrix(0, 0) << " " << matrix(0, 1) << " " << matrix(0, 2)
+           << " " << pose.x << " " << matrix(1, 0) << " " << matrix(1, 1)
+           << " " << matrix(1, 2) << " " << pose.y << " " << matrix(2, 0)
+           << " " << matrix(2, 1) << " " << matrix(2, 2) << " " << pose.z
+           << std::endl;
+  }
+}
+
+bool LIVMapper::saveKeyFrame(const std::string &destination,
+                             float map_resolution) {
   /**************** data saver runs when programe is closing ****************/
   std::cout << "**************** data saver runs when programe is closing "
                "****************"
             << std::endl;
+
+  if (surfCloudKeyFrames.empty() || cloudKeyPoses3D->empty() ||
+      cloudKeyPoses6D->empty()) {
+    RCLCPP_ERROR(this->node->get_logger(),
+                 "Cannot save map: no keyframes have been collected");
+    return false;
+  }
 
   if (!((surfCloudKeyFrames.size() == cloudKeyPoses3D->points.size()) &&
         (cloudKeyPoses3D->points.size() == cloudKeyPoses6D->points.size()))) {
@@ -1682,18 +1758,47 @@ void LIVMapper::saveKeyFrame() {
                  "cloudKeyPoses3D->points.size() == "
                  "cloudKeyPoses6D->points.size()-- is not satisfied"
               << std::endl;
-    return;
+    return false;
   } else {
     std::cout << "the num of total keyframe is " << surfCloudKeyFrames.size()
               << std::endl;
   }
-  isam->update();
-  isam->update();
-  isamCurrentEstimate = isam->calculateBestEstimate();
+  std::vector<PointTypePose> keyframeEstimates;
+  keyframeEstimates.reserve(cloudKeyPoses6D->size());
+  if (enable_gtsam) {
+    isam->update();
+    isam->update();
+    isamCurrentEstimate = isam->calculateBestEstimate();
+    for (size_t i = 0; i < cloudKeyPoses6D->size(); ++i) {
+      const auto optimized = isamCurrentEstimate.at<gtsam::Pose3>(i);
+      PointTypePose pose = cloudKeyPoses6D->points[i];
+      pose.x = optimized.translation().x();
+      pose.y = optimized.translation().y();
+      pose.z = optimized.translation().z();
+      pose.roll = optimized.rotation().roll();
+      pose.pitch = optimized.rotation().pitch();
+      pose.yaw = optimized.rotation().yaw();
+      keyframeEstimates.push_back(pose);
+    }
+  } else {
+    for (const auto &pose : cloudKeyPoses6D->points) {
+      keyframeEstimates.push_back(pose);
+    }
+  }
 
   // save key frame poses
   // string save_dir(std::string(ROOT_DIR) + "map/");
-  string save_dir = map_save_path;
+  std::filesystem::path save_path =
+      destination.empty() ? std::filesystem::path(map_save_path)
+                          : std::filesystem::path(destination);
+  string save_dir = save_path.string();
+  if (save_dir.empty()) {
+    RCLCPP_ERROR(this->node->get_logger(), "Map destination is empty");
+    return false;
+  }
+  if (save_dir.back() != std::filesystem::path::preferred_separator) {
+    save_dir.push_back(std::filesystem::path::preferred_separator);
+  }
   fsmkdir(save_dir);
 
   // save pose graph
@@ -1712,23 +1817,11 @@ void LIVMapper::saveKeyFrame() {
   // save key frame poses in KITTI format
   std::cout << "Saving key frame poses in special format" << std::endl;
   const std::string kitti_format_pg_filename{save_dir + "optimized_poses.txt"};
-  saveOptimizedVerticesKITTIformat(isamCurrentEstimate,
-                                   kitti_format_pg_filename);
+  savePosesKITTIformat(keyframeEstimates, kitti_format_pg_filename);
   std::string mapping_traj_path = save_dir + "mapping.txt";
-  std::ofstream foutC2(mapping_traj_path, std::ios::app);
+  std::ofstream foutC2(mapping_traj_path, std::ios::trunc);
   for (int i = 0; i < cloudKeyPoses6D->size(); i++) {
-    cloudKeyPoses6D->points[i].x =
-        isamCurrentEstimate.at<gtsam::Pose3>(i).translation().x();
-    cloudKeyPoses6D->points[i].y =
-        isamCurrentEstimate.at<gtsam::Pose3>(i).translation().y();
-    cloudKeyPoses6D->points[i].z =
-        isamCurrentEstimate.at<gtsam::Pose3>(i).translation().z();
-    cloudKeyPoses6D->points[i].roll =
-        isamCurrentEstimate.at<gtsam::Pose3>(i).rotation().roll();
-    cloudKeyPoses6D->points[i].pitch =
-        isamCurrentEstimate.at<gtsam::Pose3>(i).rotation().pitch();
-    cloudKeyPoses6D->points[i].yaw =
-        isamCurrentEstimate.at<gtsam::Pose3>(i).rotation().yaw();
+    cloudKeyPoses6D->points[i] = keyframeEstimates.at(i);
 
     tf2::Quaternion quat;
     quat.setRPY(cloudKeyPoses6D->points[i].roll,
@@ -1755,59 +1848,111 @@ void LIVMapper::saveKeyFrame() {
   fsmkdir(scd_path);
   string pcd_path = save_dir + "keyframe_cloud/";
   fsmkdir(pcd_path);
+  ScanContext::SCManager save_sc_manager;
   for (size_t i = 0; i < cloudKeyPoses6D->size(); i++) {
     pcl::PointCloud<PointTypeXYZI>::Ptr save_cloud(
         new pcl::PointCloud<PointTypeXYZI>());
     if (sc_input_type == SCInputType::SINGLE_SCAN_FULL) {
       pcl::copyPointCloud(*surfCloudKeyFrames[i], *save_cloud);
-      scLoop.makeAndSaveScancontextAndKeys(*save_cloud);
     } else if (sc_input_type == SCInputType::MULTI_SCAN_FEAT) {
       pcl::PointCloud<PointTypeXYZI>::Ptr multiKeyFrameFeatureCloud(
           new pcl::PointCloud<PointTypeXYZI>());
       // 前后各两帧
       loopFindNearKeyframes(multiKeyFrameFeatureCloud, i, 2);
+      if (multiKeyFrameFeatureCloud->empty()) {
+        pcl::copyPointCloud(*surfCloudKeyFrames[i], *multiKeyFrameFeatureCloud);
+      }
       pcl::copyPointCloud(*multiKeyFrameFeatureCloud, *save_cloud);
-      scLoop.makeAndSaveScancontextAndKeys(*save_cloud);
     }
+    if (save_cloud->empty()) {
+      std::cout << "skip empty keyframe cloud " << i << std::endl;
+      continue;
+    }
+    save_sc_manager.makeAndSaveScancontextAndKeys(*save_cloud);
 
     // save sc data
-    const auto &curr_scd = scLoop.getConstRefRecentSCD();
-    std::string curr_scd_node_idx = padZeros(scLoop.polarcontexts_.size() - 1);
+    const auto &curr_scd = save_sc_manager.getConstRefRecentSCD();
+    std::string curr_scd_node_idx =
+        padZeros(save_sc_manager.polarcontexts_.size() - 1);
     writeSCD(scd_path + curr_scd_node_idx + ".scd", curr_scd);
 
     string all_points_dir(pcd_path + string(curr_scd_node_idx) + ".pcd");
     pcl::io::savePCDFileASCII(all_points_dir, *save_cloud);
   }
 
-  pcl::PointCloud<PointTypeXYZI>::Ptr globalCornerCloud(
-      new pcl::PointCloud<PointTypeXYZI>());
-  pcl::PointCloud<PointTypeXYZI>::Ptr globalSurfCloud(
-      new pcl::PointCloud<PointTypeXYZI>());
-  pcl::PointCloud<PointTypeXYZI>::Ptr globalMapCloud(
-      new pcl::PointCloud<PointTypeXYZI>());
-  pcl::PointCloud<PointTypeXYZI>::Ptr globalMapCloudDS(
-      new pcl::PointCloud<PointTypeXYZI>());
+  pcl::PointCloud<PointTypeXYZI> globalMapCloud;
   for (int i = 0; i < (int)cloudKeyPoses6D->size(); i++) {
-    *globalSurfCloud += *transformPointCloud(surfCloudKeyFrames[i],
-                                             &cloudKeyPoses6D->points[i]);
+    globalMapCloud += *transformPointCloud(surfCloudKeyFrames[i],
+                                           &cloudKeyPoses6D->points[i]);
   }
-  *globalMapCloud += *globalSurfCloud;
-  pcl::VoxelGrid<PointTypeXYZI>
-      downSizeFilterGlobalMapKeyFrames;  // for global map
-  downSizeFilterGlobalMapKeyFrames.setLeafSize(
-      1.0, 1.0, 1.0);  // for global map visualization
-  downSizeFilterGlobalMapKeyFrames.setInputCloud(globalMapCloud);
-  downSizeFilterGlobalMapKeyFrames.filter(*globalMapCloudDS);
-  pcl::io::savePLYFileASCII(save_dir + "cloudGlobal.ply", *globalMapCloudDS);
-  pcl::io::savePCDFileASCII(save_dir + "cloudGlobal.pcd", *globalMapCloudDS);
+  const float valid_resolution = map_resolution > 0.0F ? map_resolution : 1.0F;
+  using VoxelKey = std::tuple<long long, long long, long long>;
+  std::map<VoxelKey, PointTypeXYZI> voxel_points;
+  for (const auto &point : globalMapCloud.points) {
+    if (!pcl::isFinite(point)) continue;
+    const auto key = std::make_tuple(
+        static_cast<long long>(std::floor(point.x / valid_resolution)),
+        static_cast<long long>(std::floor(point.y / valid_resolution)),
+        static_cast<long long>(std::floor(point.z / valid_resolution)));
+    voxel_points.try_emplace(key, point);
+  }
+  pcl::PointCloud<PointTypeXYZI> globalMapCloudDS;
+  globalMapCloudDS.points.reserve(voxel_points.size());
+  for (const auto &[key, point] : voxel_points) {
+    (void)key;
+    globalMapCloudDS.points.push_back(point);
+  }
+  globalMapCloudDS.width = globalMapCloudDS.points.size();
+  globalMapCloudDS.height = 1;
+  globalMapCloudDS.is_dense = true;
+  pcl::io::savePLYFileASCII(save_dir + "cloudGlobal.ply", globalMapCloudDS);
+  pcl::io::savePCDFileASCII(save_dir + "cloudGlobal.pcd", globalMapCloudDS);
   cout << "*************************Saving map to pcd files "
           "completed***************************"
        << endl;
-  savePCD();
+  const auto expected_keyframes = cloudKeyPoses6D->size();
+  const auto count_files = [](const std::filesystem::path &dir,
+                              const std::string &extension) {
+    size_t count = 0;
+    if (!std::filesystem::is_directory(dir)) return count;
+    for (const auto &entry : std::filesystem::directory_iterator(dir)) {
+      if (entry.is_regular_file() && entry.path().extension() == extension) {
+        ++count;
+      }
+    }
+    return count;
+  };
+  const auto nonempty_file = [](const std::filesystem::path &path) {
+    std::error_code error;
+    const auto size = std::filesystem::file_size(path, error);
+    return !error && size > 0;
+  };
+  RCLCPP_INFO(this->node->get_logger(), "Validating saved map files");
+  const bool complete =
+      expected_keyframes > 0 && !globalMapCloudDS.empty() &&
+      count_files(save_path / "keyframe_cloud", ".pcd") ==
+          expected_keyframes &&
+      count_files(save_path / "keyframe_scancontext", ".scd") ==
+          expected_keyframes &&
+      nonempty_file(save_path / "singlesession_posegraph.g2o") &&
+      nonempty_file(save_path / "mapping.txt") &&
+      nonempty_file(save_path / "optimized_poses.txt") &&
+      nonempty_file(save_path / "cloudGlobal.pcd") &&
+      nonempty_file(save_path / "cloudGlobal.ply");
+  if (!complete) {
+    RCLCPP_ERROR(this->node->get_logger(),
+                 "Map save incomplete: expected %zu keyframes in %s",
+                 expected_keyframes, save_dir.c_str());
+  }
+  RCLCPP_INFO(this->node->get_logger(), "Map validation result: %s",
+              complete ? "complete" : "incomplete");
+  return complete;
 }
-void LIVMapper::run(rclcpp::Node::SharedPtr &node) {
+void LIVMapper::run(rclcpp::Node::SharedPtr &node,
+                    const std::atomic_bool &stop_requested) {
   rclcpp::Rate rate(5000);
-  while (rclcpp::ok()) {
+  while (rclcpp::ok() &&
+         !stop_requested.load(std::memory_order_relaxed)) {
     rclcpp::spin_some(this->node);
     if (!sync_packages(LidarMeasures)) {
       rate.sleep();

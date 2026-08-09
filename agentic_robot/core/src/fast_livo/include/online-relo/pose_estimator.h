@@ -8,6 +8,7 @@
 #include <pcl/registration/ndt.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 
+#include <atomic>
 #include <deque>
 #include <fstream>
 #include <rclcpp/rclcpp.hpp>
@@ -17,11 +18,14 @@
 #include "../multi-session/Incremental_mapping.hpp"
 #include "../tool_color_printf.h"
 #include "../utils/tictoc.hpp"
+#include "ndt_target_validation.h"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
+#include "std_msgs/msg/bool.hpp"
+#include "std_msgs/msg/float64.hpp"
 #ifdef CUDA_EN
 #include "ndt/ndt_cuda.hpp"
 #include "gicp/fast_vgicp_cuda.hpp"
@@ -64,6 +68,8 @@ class pose_estimator {
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
       pubMeasurementEdge;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pubPath;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr pubRegistrationSuccess;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr pubRegistrationScore;
 
   // Point clouds
   pcl::PointCloud<PointTypeXYZI>::Ptr priorMap;
@@ -135,6 +141,8 @@ class pose_estimator {
   nav_msgs::msg::Odometry odomAftMapped;
   geometry_msgs::msg::PoseStamped msg_body_pose;
   std::deque<PointTypePose> reloPoseBuffer;
+  std::deque<std::pair<double, Eigen::Affine3f>> twist_pose_window_;
+  double twist_window_duration_ = 0.3;
 
   // Sessions and registration
   std::vector<MultiSession::Session> sessions;
@@ -168,6 +176,7 @@ class pose_estimator {
   std::thread thread_loc_, thread_pub_;
 
   double localmap_res_,currentcloud_res_;
+  double ndt_resolution_ = 1.0;
 
   // 多帧累积   
   bool accum_enable_ = false;
@@ -186,12 +195,14 @@ class pose_estimator {
   void externalCBK(
       const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg);
 
-  void run(rclcpp::Node::SharedPtr& node);
+  void run(rclcpp::Node::SharedPtr& node,
+           const std::atomic_bool& stop_requested);
   void publish_cloud(rclcpp::Node::SharedPtr& node);
   void start_localization();
   bool easyToRelo(const PointTypeXYZI& pose3d);
   bool globalRelo();
   bool relocalization();
+  void publish_registration_status(bool success, double score);
   // 方法A：使用旋转矩阵直接计算yaw（最稳定）
   float getYawFromTransform(const Eigen::Affine3f& tf);
   bool ndt_pcl(const pcl::PointCloud<PointTypeXYZI>::Ptr input_cloud,
@@ -213,7 +224,8 @@ class pose_estimator {
                              Eigen::Matrix4f &output_pose);                            
 #endif
   void lio_incremental();
-  void publish_odometry(const Eigen::Affine3f& trans_aft);
+  void publish_odometry(const Eigen::Affine3f& trans_aft,
+                        const rclcpp::Time& stamp);
   void publish_odometry(
       const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr& pub);
   void publish_path(

@@ -11,14 +11,10 @@ from urllib import request
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Send a semantic navigation request")
-    parser.add_argument("--host", default="127.0.0.1",
-                        help="Robot service host")
-    parser.add_argument("--port", type=int, default=8000,
-                        help="Robot service port")
-    parser.add_argument("--floor", default="", help="Target floor")
-    parser.add_argument("--room", default="", help="Target room")
-    parser.add_argument("--object", dest="target_object",
-                        default="", help="Target object")
+    parser.add_argument("--robot-url", default="http://127.0.0.1:8000",
+                        help="Robot service base URL")
+    parser.add_argument("--cmd", required=True,
+                        help="Semantic target as floor,room,object")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print request without sending")
     return parser
@@ -28,12 +24,8 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
-    payload = {
-        "floor": args.floor,
-        "room": args.room,
-        "object": args.target_object,
-    }
-    url = f"http://{args.host}:{args.port}/api/semantic_nav"
+    payload = {"cmd": args.cmd}
+    url = f"{args.robot_url.rstrip('/')}/api/semantic_nav"
 
     print(f"POST {url}")
     print(json.dumps(payload, ensure_ascii=False, indent=2))

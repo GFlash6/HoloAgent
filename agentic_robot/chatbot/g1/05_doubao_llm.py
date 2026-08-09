@@ -1,15 +1,20 @@
 import time
-from openai import OpenAI
+import os
+from openai import DefaultHttpxClient, OpenAI
 
-from audio.env import SETTINGS
-
-LLM_DOUBAO_MODEL = SETTINGS["llm"]["llm_doubao_model"]
-ARK_API_KEY = SETTINGS["llm"]["ark_api_key"]
-ARK_BASE_URL = SETTINGS["llm"]["ark_base_url"]
+QWEN_API_KEY = os.getenv("QWEN_API_KEY", "")
+if not QWEN_API_KEY:
+    raise RuntimeError("未配置 QWEN_API_KEY")
 
 client = OpenAI(
-    api_key=ARK_API_KEY,
-    base_url=ARK_BASE_URL,
+    api_key=QWEN_API_KEY,
+    base_url=os.getenv(
+        "QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    ),
+    http_client=DefaultHttpxClient(
+        proxy=os.getenv("HTTPS_PROXY") or os.getenv("https_proxy"),
+        trust_env=False,
+    ),
 )
 
 start_time = time.time()
@@ -18,15 +23,9 @@ response = client.chat.completions.create(
         {"role": "system", "content": "你是个语音助手, 请用中文回答用户的问题"},
         {"role": "user", "content": "讲一个故事"},
     ],
-    model=LLM_DOUBAO_MODEL,
+    model=os.getenv("QWEN_MODEL", "qwen3.7-plus"),
     stream=True,  # True 是流逝返回，False是非流逝返回
-    extra_body={
-        "thinking": {
-            "type": "disabled"  # 不使用深度思考能力
-            # "type": "enabled" # 使用深度思考能力
-            # "type": "auto" # 模型自行判断是否使用深度思考能力
-        }
-    },
+    extra_body={"enable_thinking": False},
 )
 
 first_token_logged = False

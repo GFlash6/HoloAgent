@@ -21,8 +21,8 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|aarch64|ARM|AARCH64)")
   add_definitions(-DARM_ARCH)
 else()
   # x86-64 (Intel/AMD) optimizations
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native -mtune=native -funroll-loops") #-flto
-  message(STATUS "Using general x86 optimizations: -O3 -march=native -mtune=native -funroll-loops") 
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -mtune=native -funroll-loops") #-flto
+  message(STATUS "Using ABI-safe x86 optimizations: -O3 -mtune=native -funroll-loops")
   add_definitions(-DX86_ARCH)
 endif()
 find_package(PCL REQUIRED)
@@ -101,5 +101,4 @@ endif()
 # -------------------------
 # 上层 CMake 可以使用 target_link_libraries(parent_target fast_gicp)
 target_include_directories(fast_gicp PUBLIC include)
-
 

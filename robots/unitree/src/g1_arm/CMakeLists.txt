@@ -15,6 +15,7 @@ find_package(std_msgs REQUIRED)  # <-- 添加这一行
 #find_package(tf2_ros REQUIRED)
 #find_package(tf2 REQUIRED)
 find_package(unitree_sdk2)
+include_directories(/usr/local/include/ddscxx)
 
 # 创建可执行文件
 add_executable(g1_getcmd_node src/getcmd.cpp)

@@ -64,6 +64,7 @@ class GoalPosePublisher(Node):
         msg.pose.position.x = x
         msg.pose.position.y = y
         msg.pose.position.z = 0.0
+        msg.pose.orientation.w = 1.0
 
         self.publisher_.publish(msg)
         self.get_logger().info(

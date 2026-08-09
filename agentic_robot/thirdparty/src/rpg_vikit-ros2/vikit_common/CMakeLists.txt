@@ -31,6 +31,7 @@ FIND_PACKAGE(ament_cmake REQUIRED)
 FIND_PACKAGE(OpenCV REQUIRED core calib3d features2d highgui imgproc)
 FIND_PACKAGE(Sophus REQUIRED)
 FIND_PACKAGE(fmt REQUIRED)
+FIND_PACKAGE(CURL REQUIRED)
 
 # Set Sourcefiles
 LIST(APPEND SOURCEFILES src/atan_camera.cpp
@@ -55,7 +56,8 @@ TARGET_LINK_LIBRARIES(${PROJECT_NAME}
   opencv_highgui
   opencv_imgproc
   Sophus::Sophus
-  fmt::fmt)
+  fmt::fmt
+  CURL::libcurl)
 TARGET_INCLUDE_DIRECTORIES(${PROJECT_NAME} PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
   "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
@@ -105,6 +107,7 @@ ament_export_dependencies(
   OpenCV
   Sophus
   fmt
+  CURL
 )
 ament_export_targets(${PROJECT_NAME})
 

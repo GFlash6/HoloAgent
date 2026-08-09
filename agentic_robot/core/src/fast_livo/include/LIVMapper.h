@@ -55,7 +55,8 @@ class LIVMapper {
                                           image_transport::ImageTransport &it_);
   void initializeComponents(rclcpp::Node::SharedPtr &node);
   void initializeFiles();
-  void run(rclcpp::Node::SharedPtr &node);
+  void run(rclcpp::Node::SharedPtr &node,
+           const std::atomic_bool &stop_requested);
   void gravityAlignment();
   void handleFirstFrame();
   void stateEstimationAndMapping();
@@ -77,9 +78,13 @@ class LIVMapper {
   void addLoopFactor();
   void addOdomFactor();
   bool saveFrame();
-  void saveKeyFrame();
+  bool saveKeyFrame(const std::string &destination = "",
+                    float map_resolution = 1.0F);
+  bool saveLioKeyFrame();
   void saveOptimizedVerticesKITTIformat(gtsam::Values _estimates,
                                         std::string _filename);
+  void savePosesKITTIformat(const std::vector<PointTypePose> &poses,
+                            const std::string &filename);
   void updatePath(const PointTypePose &pose_in);
   void getCurPose(StatesGroup cur_state);
   void publishCloud(
@@ -175,7 +180,7 @@ class LIVMapper {
 
   bool lidar_map_inited = false, pcd_save_en = false,
        pub_effect_point_en = false, pose_output_en = false,
-       ros_driver_fix_en = false;
+       ros_driver_fix_en = false, stop_after_map_save = false;
   int pcd_save_interval = -1, pcd_index = 0;
   int rgb_cloud_interval = 1;
   int pub_scan_num = 1;

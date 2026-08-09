@@ -18,8 +18,10 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
 find_package(nav2_core REQUIRED)
 find_package(pluginlib REQUIRED)
+find_package(Curses REQUIRED)
 
 nav2_package()
+link_libraries(${CURSES_LIBRARIES})
 
 include_directories(
   include

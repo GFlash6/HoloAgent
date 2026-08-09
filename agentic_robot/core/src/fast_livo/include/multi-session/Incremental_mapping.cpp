@@ -235,13 +235,18 @@ void MultiSession::Session::loadSessionKeyframePointclouds() {
         new pcl::PointCloud<PointTypeXYZI>());
     pcl::PointCloud<pcl::PointXYZI>::Ptr thisCloudFrame_(
         new pcl::PointCloud<pcl::PointXYZI>());
-    pcl::io::loadPCDFile<pcl::PointXYZI>(_pcd_name.second, *thisCloudFrame_);
+    if (pcl::io::loadPCDFile<pcl::PointXYZI>(_pcd_name.second,
+                                             *thisCloudFrame_) < 0) {
+      PCL_ERROR("Failed to load keyframe PCD %s\n", _pcd_name.second.c_str());
+      continue;
+    }
     thisCloudFrame->points.reserve(thisCloudFrame_->points.size());
     for (const auto& pt_src : thisCloudFrame_->points) {
       PointTypeXYZI pt;
       pt.x = pt_src.x;
       pt.y = pt_src.y;
       pt.z = pt_src.z;
+      pt.intensity = pt_src.intensity;
       thisCloudFrame->points.emplace_back(pt);
     }
     KeyFrame thisKeyFrame;

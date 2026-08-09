@@ -2,7 +2,7 @@
 
 from oss2.credentials import EnvironmentVariableCredentialsProvider
 import oss2
-from openai import AzureOpenAI, OpenAI
+from openai import DefaultHttpxClient, OpenAI
 import openai
 from typing import Dict, List, Optional, Tuple, Union
 import time
@@ -75,41 +75,21 @@ matplotlib.use('Agg')  # 设置为非GUI后端
 
 
 def _create_gpt_client() -> Tuple[Any, str]:
-    azure_api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
-    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
-    azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
-
-    if azure_api_key or azure_endpoint or azure_deployment:
-        if not azure_api_key:
-            raise RuntimeError(
-                "未配置 Azure API Key，请设置 AZURE_OPENAI_API_KEY"
-            )
-        if not azure_endpoint:
-            raise RuntimeError(
-                "未配置 Azure Endpoint，请设置 AZURE_OPENAI_ENDPOINT"
-            )
-        if not azure_deployment:
-            raise RuntimeError(
-                "未配置 Azure Deployment，请设置 AZURE_OPENAI_DEPLOYMENT"
-            )
-
-        client = AzureOpenAI(
-            azure_endpoint=azure_endpoint,
-            api_key=azure_api_key,
-            api_version="2024-02-15-preview",
-        )
-        return client, azure_deployment
-
-    openai_api_key = os.getenv("OPENAI_API_KEY", "")
-    if not openai_api_key:
-        raise RuntimeError(
-            "未配置 OpenAI API Key，请设置 OPENAI_API_KEY；"
-            "或配置 Azure 所需环境变量：AZURE_OPENAI_API_KEY、"
-            "AZURE_OPENAI_ENDPOINT、AZURE_OPENAI_DEPLOYMENT"
-        )
-
-    client = OpenAI(api_key=openai_api_key)
-    return client, "gpt-4o"
+    qwen_api_key = os.getenv("QWEN_API_KEY", "")
+    if not qwen_api_key:
+        raise RuntimeError("未配置 QWEN_API_KEY")
+    client = OpenAI(
+        api_key=qwen_api_key,
+        base_url=os.getenv(
+            "QWEN_BASE_URL",
+            "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        ),
+        http_client=DefaultHttpxClient(
+            proxy=os.getenv("HTTPS_PROXY") or os.getenv("https_proxy"),
+            trust_env=False,
+        ),
+    )
+    return client, os.getenv("QWEN_MODEL", "qwen3.7-plus")
 
 
 class Graph:

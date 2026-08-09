@@ -35,11 +35,10 @@ The implementation is centered around `agentic_robot/agentOS/`.
 Example environment variables:
 
 ```bash
-export GPT_PROVIDER=azure
-export AZURE_OPENAI_API_KEY=your_key
-export AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
-export AZURE_OPENAI_API_VERSION=2024-02-15-preview
-export AZURE_OPENAI_DEPLOYMENT=your_deployment_name
+export QWEN_API_KEY=your_key
+# Optional: defaults shown below
+export QWEN_MODEL=qwen3.7-plus
+export QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 
 export ROBOT_11_URL=http://192.168.124.101:8000
 export ROBOT_12_URL=http://192.168.124.102:8000

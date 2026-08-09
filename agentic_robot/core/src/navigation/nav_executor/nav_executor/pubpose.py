@@ -6,7 +6,7 @@ nav_executor — 导航中枢调度节点.
 nav_command 三类分发；同时保留旧硬编码分支作为 fallback，双轨并行验证。
 
 ROS parameters:
-  robot_name       (string, default "g1")       — robots/<robot_name>/ 目录
+  robot_name       (string, default "unitree")  — robots/<robot_name>/ 目录
   map_name         (string, default "")          — config/maps/<map_name>/ 子目录；空则仅加载 common
   signals_base_dir (string, default "")          — signals yaml 搜索根目录；
                                                    空则自动推断为本 package share 目录的
@@ -30,7 +30,6 @@ from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 from std_msgs.msg import String
 import math
-from tf_transformations import quaternion_from_euler
 import yaml
 
 
@@ -89,7 +88,7 @@ class WaypointNavigator(Node):
         print('waiting for start...')
 
         # ---------- ROS parameters ----------
-        self.declare_parameter('robot_name', 'g1')
+        self.declare_parameter('robot_name', 'unitree')
         self.declare_parameter('map_name', '')
         self.declare_parameter('signals_base_dir', '')
 
@@ -222,6 +221,8 @@ class WaypointNavigator(Node):
             if command == "cancel":
                 print(f"nav_command: cancel — 停止当前导航任务")
                 self.navigator.cancelTask()
+                self.navigation_active = False
+                self.publish_waypoint_reached("nav_canceled")
             else:
                 self.get_logger().warn(f"Unknown nav_command: {command}")
 
@@ -274,8 +275,8 @@ class WaypointNavigator(Node):
         if msg_data == 'stop':
             print('stop...停止当前导航任务...')
             self.navigator.cancelTask()
-            wp_name = "nav_finish"
-            self.publish_waypoint_reached(wp_name)
+            self.navigation_active = False
+            self.publish_waypoint_reached("nav_canceled")
             return
 
         # if msg_data in ('grab_hello_action', 'wave_hands'):
@@ -292,11 +293,11 @@ class WaypointNavigator(Node):
             self.get_logger().info("Navigation already active, ignoring duplicate.")
             return
 
-        if msg.data.startswith('custom_one_point_1_'):
+        if msg_data.startswith('custom_one_point_1_'):
             try:
                 # 去除前缀，剩下x_y_yaw
                 prefix = 'custom_one_point_1_'
-                payload = msg.data[len(prefix):]
+                payload = msg_data[len(prefix):]
                 # 支持负数和小数，允许下划线分隔
                 vals = payload.split('_')
                 if len(vals) != 3:
@@ -310,7 +311,7 @@ class WaypointNavigator(Node):
                 self.current_waypoint_index = 0
                 self.total_waypoints = 1
                 self.get_logger().info(
-                    f"Received navigation command: {msg.data}")
+                    f"Received navigation command: {msg_data}")
                 self.navigate_to_next_waypoint()
                 if self.current_waypoint_index == 0:
                     self.navigation_timer = self.create_timer(
@@ -373,11 +374,8 @@ class WaypointNavigator(Node):
         goal_pose.header.stamp = self.navigator.get_clock().now().to_msg()
         goal_pose.pose.position.x = position_x
         goal_pose.pose.position.y = position_y
-        x, y, z, w = quaternion_from_euler(0.0, 0.0, yaw)
-        goal_pose.pose.orientation.x = x
-        goal_pose.pose.orientation.y = y
-        goal_pose.pose.orientation.z = z
-        goal_pose.pose.orientation.w = w
+        goal_pose.pose.orientation.z = math.sin(yaw / 2.0)
+        goal_pose.pose.orientation.w = math.cos(yaw / 2.0)
         return goal_pose
 
     def publish_waypoint_reached(self, waypoint_name):
@@ -420,6 +418,9 @@ class WaypointNavigator(Node):
                 self.navigate_to_next_waypoint()
         else:
             self.get_logger().error(f"Navigation failed with result: {result}")
+            status = ("nav_canceled" if result == TaskResult.CANCELED
+                      else "nav_failed")
+            self.publish_waypoint_reached(status)
             self.navigation_active = False
             self.destroy_timer(self.navigation_timer)
 
@@ -440,6 +441,9 @@ class WaypointNavigator(Node):
             self.get_logger().info("Navigation to pose completed.")
         else:
             self.get_logger().error(f"Navigation to pose failed: {result}")
+            status = ("nav_canceled" if result == TaskResult.CANCELED
+                      else "nav_failed")
+            self.publish_waypoint_reached(status)
         self.destroy_timer(self.navigation_timer)
 
 

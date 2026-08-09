@@ -7,6 +7,7 @@ if(NOT OpenCV_FOUND)
   find_package(OpenCV REQUIRED)
 endif()
 message(STATUS "Found OpenCV version ${OpenCV_VERSION}")
+find_package(CURL REQUIRED)
 
 find_package(image_transport REQUIRED)
 find_package(cv_bridge REQUIRED)
@@ -24,6 +25,7 @@ find_package(nav2_core REQUIRED)
 find_package(pluginlib REQUIRED)
 
 nav2_package()
+link_libraries(CURL::libcurl)
 
 include_directories(
   include

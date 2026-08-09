@@ -98,6 +98,6 @@ reverse:
     msg_type: std_msgs/String
     http_post: "${control_url}/robot_reached"
     payload:
-      robot_id: "${robot_id}"
+      robot_id: "${ROBOT_ID}"
       waypoint_name: "${msg.data}"
     description: "到点后 POST 到控制中心（对应原 fastapi_robot.py waypoint_reached_callback）"

@@ -1,0 +1,24 @@
+# ROS 2 / colcon outputs
+build/
+install/
+log/
+symlink_install_manifest.txt
+
+# Generated maps and sensor data
+map/
+maps/
+*.pcd
+*.ply
+*.bag
+*.db3
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editor and OS caches
+.idea/
+.vscode/
+.DS_Store
+*~

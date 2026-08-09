@@ -1,6 +1,8 @@
 // ROS2 Humble version of pose_estimator.cpp (partial conversion -
 // initialization only)
 #include "pose_estimator.h"
+#include "registration_validation.h"
+#include <pcl/pcl_config.h>
 
 pose_estimator::pose_estimator(rclcpp::Node::SharedPtr &node_) : node(node_) {
   allocateMemory();
@@ -31,10 +33,21 @@ pose_estimator::pose_estimator(rclcpp::Node::SharedPtr &node_) : node(node_) {
   this->node->declare_parameter("relo.accum_enable", false);
   this->node->declare_parameter("relo.accum_window_size", 5);
   this->node->declare_parameter<double>("relo.ndt_score_threshold", 0.3);
+  this->node->declare_parameter<double>("relo.ndt_resolution", 1.0);
+  this->node->declare_parameter<double>("relo.twist_window_duration", 0.3);
 
   this->node->get_parameter("relo.accum_enable", accum_enable_);
   this->node->get_parameter("relo.accum_window_size", accum_window_size_);
+  this->node->get_parameter("relo.ndt_resolution", ndt_resolution_);
+  this->node->get_parameter("relo.twist_window_duration", twist_window_duration_);
   if (accum_window_size_ < 1) accum_window_size_ = 1;
+  if (!std::isfinite(ndt_resolution_) || ndt_resolution_ <= 0.0) {
+    throw std::runtime_error("relo.ndt_resolution must be finite and positive");
+  }
+  if (!std::isfinite(twist_window_duration_) || twist_window_duration_ <= 0.0) {
+    throw std::runtime_error(
+        "relo.twist_window_duration must be finite and positive");
+  }
   
   this->node->get_parameter("relo.robot_name", robot_name);
   this->node->get_parameter("relo.priorDir", priorDir);
@@ -59,6 +72,12 @@ pose_estimator::pose_estimator(rclcpp::Node::SharedPtr &node_) : node(node_) {
   this->node->get_parameter("relo.currentcloud_res", currentcloud_res_);
   // init_cloud_num_
   this->node->get_parameter("relo.init_cloud_num", init_cloud_num_);
+
+  if (extrinT_.size() != 3 || extrinR_.size() != 9) {
+    throw std::runtime_error(
+        "relo.extrinsic_T must contain 3 values and relo.extrinsic_R must "
+        "contain 9 values");
+  }
 
   extrinT << VEC_FROM_ARRAY(extrinT_);
   extrinR << MAT_FROM_ARRAY(extrinR_);
@@ -122,9 +141,22 @@ pose_estimator::pose_estimator(rclcpp::Node::SharedPtr &node_) : node(node_) {
       this->node->create_publisher<visualization_msgs::msg::MarkerArray>(
           "measurement", 1);
   pubPath = this->node->create_publisher<nav_msgs::msg::Path>("/eloc_path",10);
+  pubRegistrationSuccess =
+      this->node->create_publisher<std_msgs::msg::Bool>(
+          "/relocalization/registration_success", 10);
+  pubRegistrationScore =
+      this->node->create_publisher<std_msgs::msg::Float64>(
+          "/relocalization/fitness_score", 10);
   RCLCPP_INFO(this->node->get_logger(), "rostopic is ok");
 
   sessions.push_back(MultiSession::Session(1, "priorMap", priorDir, true));
+  if (sessions[0].globalMap->empty() ||
+      sessions[0].cloudKeyPoses3D->empty() ||
+      sessions[0].cloudKeyPoses6D->size() != sessions[0].cloudKeyFrames.size() ||
+      sessions[0].cloudKeyPoses6D->size() != sessions[0].scManager.polarcontexts_.size()) {
+    throw std::runtime_error(
+        "prior map is empty or has inconsistent pose/cloud/scancontext counts");
+  }
   *priorMap += *sessions[0].globalMap;
   *priorPath += *sessions[0].cloudKeyPoses3D;
   pcl::VoxelGrid<PointTypeXYZI> filter;
@@ -153,11 +185,13 @@ pose_estimator::pose_estimator(rclcpp::Node::SharedPtr &node_) : node(node_) {
   ndtCuda.setNeighborSearchMethod(fast_gicp::NeighborSearchMethod::DIRECT1);
 #endif
 
-  ndtPCL.setResolution(0.2);             // 体素分辨率(米)，可在 0.5~2.0 调整
+  ndtPCL.setResolution(ndt_resolution_);
   ndtPCL.setStepSize(0.1);                // line search 步长
   ndtPCL.setTransformationEpsilon(1e-6);  // 收敛阈值
   ndtPCL.setMaximumIterations(50);        // 迭代次数·
+#if PCL_VERSION_COMPARE(>=, 1, 15, 0)
   ndtPCL.setMinPointPerVoxel(3);         // 每个体素的最小点数
+#endif
 
 
   icpPCL.setMaxCorrespondenceDistance(0.1);
@@ -277,13 +311,14 @@ float pose_estimator::getYawFromTransform(const Eigen::Affine3f& tf) {
     return std::atan2(R(1,0), R(0,0));  // 从2D旋转矩阵提取角度
 }
 
-void pose_estimator::run(rclcpp::Node::SharedPtr &node) {
+void pose_estimator::run(rclcpp::Node::SharedPtr &node,
+                         const std::atomic_bool &stop_requested) {
   rclcpp::Rate rate(50);
   if (!rclcpp::ok()) {
     RCLCPP_ERROR(node->get_logger(), "Node is not ok, exiting run method.");
     return;
   }
-  while (rclcpp::ok()) {
+  while (rclcpp::ok() && !stop_requested.load(std::memory_order_relaxed)) {
     rclcpp::spin_some(this->node);
 
     // Check if there are enough clouds and poses in the buffers
@@ -507,7 +542,8 @@ bool pose_estimator::icp_pcl(const pcl::PointCloud<PointTypeXYZI>::Ptr input_clo
             << " with score: " << icpPCL.getFitnessScore() << std::endl;
   std::cout << "PCL ICP lidar to map transformation: " << linear.transpose() << " "
             << rot.eulerAngles(0, 1, 2).transpose() << std::endl;
-  if (!icpPCL.hasConverged() || icpPCL.getFitnessScore() > 0.1) {
+  if (!icpPCL.hasConverged() || icpPCL.getFitnessScore() > 0.1 ||
+      !registrationWithinTranslationPrior(init_pose, output_pose, trustDis)) {
     std::cout << "PCL ICP did not converge or fitness score too high, skip this "
                  "relo"
               << std::endl;
@@ -527,6 +563,21 @@ bool pose_estimator::ndt_pcl(const pcl::PointCloud<PointTypeXYZI>::Ptr input_clo
       std::cerr << "Error: input cloud is empty!" << std::endl;
       return false;
   }
+  if (!init_pose.allFinite()) {
+      std::cerr << "Error: NDT initial pose contains non-finite values!" << std::endl;
+      return false;
+  }
+  const std::size_t usable_target_voxels =
+      countNdtTargetVoxels<PointTypeXYZI>(target_cloud,
+                                         static_cast<float>(ndt_resolution_));
+  if (usable_target_voxels == 0) {
+      std::cerr << "Error: NDT target has no covariance voxels at resolution "
+                << ndt_resolution_ << "; refusing unsafe PCL 1.12 search"
+                << std::endl;
+      return false;
+  }
+  std::cout << "NDT usable target voxels: " << usable_target_voxels
+            << " at resolution: " << ndt_resolution_ << std::endl;
   ndtPCL.setInputSource(input_cloud);
   ndtPCL.setInputTarget(target_cloud);
   pcl::PointCloud<PointTypeXYZI>::Ptr alignedCloud(new pcl::PointCloud<PointTypeXYZI>());
@@ -538,12 +589,33 @@ bool pose_estimator::ndt_pcl(const pcl::PointCloud<PointTypeXYZI>::Ptr input_clo
             << " with score: " << ndtPCL.getFitnessScore() << std::endl;
   std::cout << "PCL NDT lidar to map transformation: " << linear.transpose() << " "
             << rot.eulerAngles(0, 1, 2).transpose() << std::endl;
-  if (!ndtPCL.hasConverged() || ndtPCL.getFitnessScore() > 0.15) {
+  const double score = ndtPCL.getFitnessScore();
+  const bool within_prior =
+      registrationWithinTranslationPrior(init_pose, output_pose, trustDis);
+  if (!ndtPCL.hasConverged() || !std::isfinite(score) ||
+      score > ndt_score_threshold_ || !output_pose.allFinite() ||
+      !within_prior) {
+    if (!within_prior) {
+      const double prior_delta =
+          (output_pose.block<3, 1>(0, 3) - init_pose.block<3, 1>(0, 3)).norm();
+      std::cout << "PCL NDT rejected: result moved " << prior_delta
+                << " m from the supplied prior (limit " << trustDis << " m)"
+                << std::endl;
+    }
     std::cout << "PCL NDT did not converge or fitness score too high, skip this "
               << std::endl;
     return false;
   }
   return true;
+}
+
+void pose_estimator::publish_registration_status(bool success, double score) {
+  std_msgs::msg::Bool success_message;
+  success_message.data = success;
+  pubRegistrationSuccess->publish(success_message);
+  std_msgs::msg::Float64 score_message;
+  score_message.data = score;
+  pubRegistrationScore->publish(score_message);
 }
 
 // 直接计算lidar to map的位姿
@@ -611,6 +683,7 @@ bool pose_estimator::relocalization() {
   else if(reg_mode_ == 3) score = fvgicpCuda.getFitnessScore();
 #endif
   fout_ndt_score << score << std::endl;
+  publish_registration_status(ndt_success, score);
 
   std::cout << "NDT registration time: " << elapsed.count() << " seconds"
             << std::endl;
@@ -619,13 +692,14 @@ bool pose_estimator::relocalization() {
   }
   // lidar to map
   currentPoseInMap = Eigen::Affine3f(transform);
+  const rclcpp::Time publish_stamp = this->node->now();
   // cloud in map frame
   reloCloudInMap->clear();
   pcl::transformPointCloud(*input_cloud, *reloCloudInMap, currentPoseInMap.matrix());
-  publishCloud(pubReloWorldCloud, reloCloudInMap, this->node->now(), "map");
+  publishCloud(pubReloWorldCloud, reloCloudInMap, publish_stamp, "map");
 
   // body pose in map
-  Eigen::Affine3f lidar2body;
+  Eigen::Affine3f lidar2body = Eigen::Affine3f::Identity();
   if(robot_name == "hexfellow"){
     lidar2body.translation() << 0.0, 0.0, 0.0;
     Eigen::Matrix3f extrinR;
@@ -635,7 +709,6 @@ bool pose_estimator::relocalization() {
     Eigen::Matrix4f mat4 = Eigen::Matrix4f::Identity();
     mat4.block<3,3>(0,0) = extrinR.cast<float>();
     mat4.block<3,1>(0,3) = extrinT.cast<float>();
-    Eigen::Affine3f lidar2body;
     lidar2body.matrix() = mat4;
   }
   
@@ -644,16 +717,14 @@ bool pose_estimator::relocalization() {
   cloudInBody->clear();
   // transformPointCloud(currentCloud, lidar2body, cloudInBody);
   pcl::transformPointCloud(*currentCloud, *cloudInBody, lidar2body.matrix());
-  publishCloud(pubRelocBodyCloud, cloudInBody,
-               /*rclcpp::Time(currentCloudTime * 1e9)*/ this->node->now(),
-               "base_link");
+  publishCloud(pubRelocBodyCloud, cloudInBody, publish_stamp, "base_link");
 
   // std::cout << "lidar to map transformation: " << currentPoseInMap.translation().x()
   //           << " " << currentPoseInMap.translation().y() << " "
   //           << currentPoseInMap.translation().z() << " "
   //           << currentPoseInMap.rotation().eulerAngles(0, 1, 2).transpose()
   //           << std::endl;
-  publish_odometry(currentPoseInMap);
+  publish_odometry(currentPoseInMap, publish_stamp);
   publish_path(pubPath);
 
   return true;
@@ -663,7 +734,7 @@ void pose_estimator::lio_incremental() {
   std::cout << ANSI_COLOR_RED << "livo mode for frame: " << idx
             << ANSI_COLOR_RESET << std::endl;
 
-  Eigen::Affine3f lidar2body;
+  Eigen::Affine3f lidar2body = Eigen::Affine3f::Identity();
   if(robot_name == "hexfellow"){
     lidar2body.translation() << 0.0, 0.0, 0.0;
     Eigen::Matrix3f extrinR;
@@ -673,7 +744,6 @@ void pose_estimator::lio_incremental() {
     Eigen::Matrix4f mat4 = Eigen::Matrix4f::Identity();
     mat4.block<3,3>(0,0) = extrinR.cast<float>();
     mat4.block<3,1>(0,3) = extrinT.cast<float>();
-    Eigen::Affine3f lidar2body;
     lidar2body.matrix() = mat4;
   }
 
@@ -681,33 +751,58 @@ void pose_estimator::lio_incremental() {
   cloudInBody->clear();
   // transformPointCloud(currentCloud, lidar2body, cloudInBody);
   pcl::transformPointCloud(*currentCloud, *cloudInBody, lidar2body.matrix());
-  publishCloud(pubRelocBodyCloud, cloudInBody,
-               /*rclcpp::Time(currentCloudTime * 1e9)*/ this->node->now(),
-               "base_link");
+  const rclcpp::Time publish_stamp = this->node->now();
+  publishCloud(pubRelocBodyCloud, cloudInBody, publish_stamp, "base_link");
   
   // cloud in map frame
   reloCloudInMap->clear();
   // transformPointCloud(currentCloudDs, currentPoseInMap, reloCloudInMap);
   pcl::transformPointCloud(*currentCloudDs, *reloCloudInMap, currentPoseInMap.matrix());
-  publishCloud(pubReloWorldCloud, reloCloudInMap, this->node->now(), "map");
+  publishCloud(pubReloWorldCloud, reloCloudInMap, publish_stamp, "map");
 
   // std::cout << "livo transformation in map: " << currentPoseInMap.translation().x()
   //           << " " << currentPoseInMap.translation().y() << " "
   //           << currentPoseInMap.translation().z() << " "
   //           << currentPoseInMap.rotation().eulerAngles(0, 1, 2).transpose()
   //           << std::endl;
-  publish_odometry(currentPoseInMap);
+  publish_odometry(currentPoseInMap, publish_stamp);
   publish_path(pubPath);
 }
 
-void pose_estimator::publish_odometry(const Eigen::Affine3f &trans_aft) {
-  // *** 新增这4行 ***
+void pose_estimator::publish_odometry(const Eigen::Affine3f &trans_aft,
+                                      const rclcpp::Time &stamp) {
   Eigen::Affine3f lidar2baselink;
   lidar2baselink.translation() = extrinT.cast<float>();
   lidar2baselink.linear() = extrinR.cast<float>();
-  auto &trans_aft_final = trans_aft * lidar2baselink;
+  const Eigen::Affine3f trans_aft_final = trans_aft * lidar2baselink;
 
-  // 下面把所有 trans_aft 改成 trans_aft_final
+  // Nav2 consumes child-frame velocity from Odometry::twist.  Derive it from
+  // consecutive LIO poses using the sensor source clock, so relocalization
+  // corrections and the wall-time publication stamp cannot create fake speed.
+  const Eigen::Affine3f pose_in_odom = currentPoseInOdom * lidar2baselink;
+  twist_pose_window_.emplace_back(currentCloudTime, pose_in_odom);
+  while (twist_pose_window_.size() > 2 &&
+         currentCloudTime - twist_pose_window_[1].first >=
+             twist_window_duration_) {
+    twist_pose_window_.pop_front();
+  }
+  const double dt =
+      currentCloudTime - twist_pose_window_.front().first;
+  odomAftMapped.twist.twist = geometry_msgs::msg::Twist();
+  if (twist_pose_window_.size() > 1 && std::isfinite(dt) && dt > 0.0) {
+    const Eigen::Affine3f delta_body =
+        twist_pose_window_.front().second.inverse() * pose_in_odom;
+    const Eigen::Vector3f linear = delta_body.translation() / dt;
+    const Eigen::AngleAxisf rotation_delta(delta_body.rotation());
+    const Eigen::Vector3f angular =
+        rotation_delta.axis() * rotation_delta.angle() / dt;
+    odomAftMapped.twist.twist.linear.x = linear.x();
+    odomAftMapped.twist.twist.linear.y = linear.y();
+    odomAftMapped.twist.twist.linear.z = linear.z();
+    odomAftMapped.twist.twist.angular.x = angular.x();
+    odomAftMapped.twist.twist.angular.y = angular.y();
+    odomAftMapped.twist.twist.angular.z = angular.z();
+  }
   Eigen::Matrix<double, 3, 3> ang_rot = trans_aft_final.rotation().cast<double>();
   Eigen::Quaterniond quaternion(ang_rot);
   odomAftMapped.pose.pose.position.x = trans_aft_final.translation().x();
@@ -717,6 +812,7 @@ void pose_estimator::publish_odometry(const Eigen::Affine3f &trans_aft) {
   odomAftMapped.pose.pose.orientation.y = quaternion.y();
   odomAftMapped.pose.pose.orientation.z = quaternion.z();
   odomAftMapped.pose.pose.orientation.w = quaternion.w();
+  odomAftMapped.header.stamp = stamp;
   publish_odometry(pubPose);
 }
 
@@ -737,7 +833,8 @@ bool pose_estimator::easyToRelo(const PointTypeXYZI &pose3d) {
   kdtreeGlobalMapPoses_copy->radiusSearchT(pose3d, searchDis * 2.0, idxVec_copy,
                                            disVec_copy);
 
-  if (idxVec_copy.size() > 4 && disVec[0] <= searchDis * 2.0) {
+  if (idxVec_copy.size() > 4 && !disVec_copy.empty() &&
+      disVec_copy[0] <= searchDis * 2.0) {
     std::cout << ANSI_COLOR_RED << "relo by secondary search with "
               << idxVec_copy.size() << " points" << ANSI_COLOR_RESET
               << std::endl;
@@ -858,13 +955,24 @@ bool pose_estimator::globalRelo() {
     Eigen::Affine3f initPoseInMap =
         transPriorFrame2Map * transCurFrame2PriorFrame;         
     Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-    bool ndt_success=ndt_pcl(initCloud, tempNearCloud, initPoseInMap.matrix(), transform); 
+    bool registration_success = false;
+    double registration_score = std::numeric_limits<double>::infinity();
+    if (reg_mode_ == 0) {
+      registration_success =
+          ndt_pcl(initCloud, tempNearCloud, initPoseInMap.matrix(), transform);
+      registration_score = ndtPCL.getFitnessScore();
+    } else if (reg_mode_ == 1) {
+      registration_success =
+          icp_pcl(initCloud, tempNearCloud, initPoseInMap.matrix(), transform);
+      registration_score = icpPCL.getFitnessScore();
+    }
+    publish_registration_status(registration_success, registration_score);
 
     reloCloudInMap->clear();
     pcl::transformPointCloud(*initCloud, *reloCloudInMap, transform);
     publishCloud(pubReloWorldCloud, reloCloudInMap, this->node->now(), "map");
     
-    if (!ndt_success) {
+    if (!registration_success) {
       if(ndtPCL.getFitnessScore()>ndt_score_threshold_) invalid_idx.emplace_back(detectID);
       sc_flg = false;
       return false;
@@ -954,7 +1062,18 @@ bool pose_estimator::globalRelo() {
     std::cout << "init local map size: " << currentLocalMapDS->points.size()
               << std::endl;
     Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-    bool ndt_success=ndt_pcl(currentCloudDsInOdom, currentLocalMapDS, init_odom2map.matrix(), transform);
+    bool registration_success = false;
+    double registration_score = std::numeric_limits<double>::infinity();
+    if (reg_mode_ == 0) {
+      registration_success = ndt_pcl(currentCloudDsInOdom, currentLocalMapDS,
+                                     init_odom2map.matrix(), transform);
+      registration_score = ndtPCL.getFitnessScore();
+    } else if (reg_mode_ == 1) {
+      registration_success = icp_pcl(currentCloudDsInOdom, currentLocalMapDS,
+                                     init_odom2map.matrix(), transform);
+      registration_score = icpPCL.getFitnessScore();
+    }
+    publish_registration_status(registration_success, registration_score);
 
     // transform is from odom to map
     Eigen::Affine3f transformAffine;
@@ -967,9 +1086,8 @@ bool pose_estimator::globalRelo() {
         init_odom2map.matrix().inverse() * transform;
     float pos_diff = trans_diff.block<3, 1>(0, 3).norm();
     std::cout << "NDT delta pose difference: " << pos_diff << std::endl;
-    float ndt_score = ndtPCL.getFitnessScore();
     std::cout << "ndt_score_threshold_ = " << ndt_score_threshold_ << std::endl;
-    if (!ndt_success && ndt_score > ndt_score_threshold_) {
+    if (!registration_success) {
       std::cout << ANSI_COLOR_RED
                 << "NDT registration failed, fitness score too high: "
                 << ndtPCL.getFitnessScore() << ANSI_COLOR_RESET << std::endl;
@@ -980,8 +1098,8 @@ bool pose_estimator::globalRelo() {
       return false;
     }
 
-    std::cout << "NDT has converged: " << ndtPCL.hasConverged()
-              << " with score: " << ndtPCL.getFitnessScore() << std::endl;
+    std::cout << "Registration succeeded with score: " << registration_score
+              << std::endl;
     sc_flg = true;
 
     // optimazed odom to map transformation
@@ -1013,7 +1131,6 @@ void pose_estimator::publish_odometry(
     const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr &pub) {
   odomAftMapped.header.frame_id = "map";
   odomAftMapped.child_frame_id = "base_link";
-  odomAftMapped.header.stamp = this->node->now();
 
   static std::shared_ptr<tf2_ros::TransformBroadcaster> br;
   br = std::make_shared<tf2_ros::TransformBroadcaster>(this->node);
@@ -1026,6 +1143,15 @@ void pose_estimator::publish_odometry(
   transform.transform.translation.z = odomAftMapped.pose.pose.position.z;
   transform.transform.rotation = odomAftMapped.pose.pose.orientation;
   br->sendTransform(transform);
+
+  if (fout_relo.is_open()) {
+    const auto &pose = odomAftMapped.pose.pose;
+    fout_relo << std::fixed << std::setprecision(9) << currentCloudTime << " "
+              << pose.position.x << " " << pose.position.y << " "
+              << pose.position.z << " " << pose.orientation.x << " "
+              << pose.orientation.y << " " << pose.orientation.z << " "
+              << pose.orientation.w << std::endl;
+  }
 
  // static std::shared_ptr<tf2_ros::StaticTransformBroadcaster> br_static;
  // br_static = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this->node);

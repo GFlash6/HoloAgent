@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-豆包ASR + OpenClaw TUI - 使用你原有的音频逻辑
+Qwen ASR + OpenClaw TUI
 """
 
 import asyncio
@@ -11,7 +11,7 @@ import signal
 
 # 导入你原有的模块
 from audio.audio_device import AudioDevice
-from audio.volcengine_doubao_asr import AsrWsClient
+from audio.qwen_asr import AsrWsClient
 from audio.misc import realtime_audio_generator  # 用你原来的函数
 
 
@@ -39,7 +39,7 @@ async def run_asr():
     audio = AudioDevice()
     audio.start_streams(input_only=True)
 
-    asr_url = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
+    asr_url = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=qwen3-asr-flash-realtime"
     last_text = ""
 
     print("🎤 持续录音中，按 Ctrl+C 停止")
@@ -52,7 +52,8 @@ async def run_asr():
                 audio_stream = realtime_audio_generator(
                     audio,
                     duration_seconds=5,  # 每5秒一段，但外层 while True 会重新连接
-                    chunk_duration_ms=200
+                    chunk_duration_ms=200,
+                    sample_rate=16000,
                 )
 
                 async for response in client.execute_stream(audio_stream):

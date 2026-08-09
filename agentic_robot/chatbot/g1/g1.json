@@ -5,12 +5,9 @@
         "chunk_size": 512
     },
     "asr":{
-        "app_id": "xxxx",
-        "access_key": "xxxx",
         "end_window_size": 600,
-        "rate": 44100,
-        "seg_duration": 200,
-        "url": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
+        "rate": 16000,
+        "seg_duration": 200
     },
     "tts":{
         "app_id": "xxxx",
@@ -19,11 +16,7 @@
         "resource_id": "seed-tts-2.0",
         "endpoint": "wss://openspeech.bytedance.com/api/v3/tts/bidirection"
     },
-    "llm":{
-        "llm_doubao_model": "doubao-seed-2-0-lite-260215",
-        "ark_api_key": "xxxx",
-        "ark_base_url": "https://ark.cn-beijing.volces.com/api/v3"
-    },
+    "llm":{"model": "qwen3.7-plus"},
     "work_dir": "~/.config/g1",
     "language": "zh",
     "wake_up_text": "地瓜地瓜",

@@ -81,11 +81,42 @@ void Preprocess::process(
     case PANDAR128:
       Pandar128_handler(msg);
       break;
+    case XYZ32:
+      xyz32_handler(msg);
+      break;
     default:
       printf("Error LiDAR Type: %d \n", lidar_type);
       break;
   }
   *pcl_out = pl_surf;
+}
+
+void Preprocess::xyz32_handler(
+    const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
+  pl_surf.clear();
+  pl_corn.clear();
+  pl_full.clear();
+  pcl::PointCloud<pcl::PointXYZ> input;
+  pcl::fromROSMsg(*msg, input);
+  pl_surf.reserve(input.size());
+  const int filter = std::max(1, point_filter_num);
+  for (size_t i = 0; i < input.size(); i += filter) {
+    const auto &source = input.points[i];
+    if (!std::isfinite(source.x) || !std::isfinite(source.y) ||
+        !std::isfinite(source.z)) {
+      continue;
+    }
+    const double range = std::sqrt(source.x * source.x + source.y * source.y +
+                                   source.z * source.z);
+    if (range < blind || range >= max_range) continue;
+    PointType point{};
+    point.x = source.x;
+    point.y = source.y;
+    point.z = source.z;
+    point.intensity = 0.0F;
+    point.curvature = 0.0F;
+    pl_surf.emplace_back(point);
+  }
 }
 
 void Preprocess::avia_handler(

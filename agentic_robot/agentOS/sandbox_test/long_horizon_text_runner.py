@@ -21,7 +21,7 @@ from typing import List, Optional, Set
 
 import requests
 import yaml
-from openai import AzureOpenAI, OpenAI
+from openai import DefaultHttpxClient, OpenAI
 
 
 DEFAULT_OUTPUT_ROOT = Path(
@@ -171,38 +171,22 @@ class LongHorizonTextRunner:
         self._write_yaml(self.monitor_path, self.monitor)
 
     def _build_llm_client(self):
-        gpt_provider = os.getenv("GPT_PROVIDER", "azure").strip().lower()
-        gpt_api_key = (
-            os.getenv("AZURE_OPENAI_API_KEY")
-            if gpt_provider == "azure"
-            else os.getenv("OPENAI_API_KEY")
+        qwen_api_key = os.getenv("QWEN_API_KEY")
+        if not qwen_api_key:
+            raise RuntimeError("未配置 QWEN_API_KEY")
+        qwen_model = os.getenv("QWEN_MODEL", "qwen3.7-plus")
+        client = OpenAI(
+            api_key=qwen_api_key,
+            base_url=os.getenv(
+                "QWEN_BASE_URL",
+                "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            ),
+            http_client=DefaultHttpxClient(
+                proxy=os.getenv("HTTPS_PROXY") or os.getenv("https_proxy"),
+                trust_env=False,
+            ),
         )
-        if not gpt_api_key:
-            raise RuntimeError(
-                "未配置 GPT API Key，请设置 AZURE_OPENAI_API_KEY 或 OPENAI_API_KEY")
-
-        if gpt_provider == "azure":
-            azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-            if not azure_endpoint:
-                raise RuntimeError(
-                    "未配置 Azure Endpoint，请设置 AZURE_OPENAI_ENDPOINT")
-            azure_api_version = os.getenv(
-                "AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
-            gpt_model = os.getenv(
-                "AZURE_OPENAI_DEPLOYMENT",
-                os.getenv("AZURE_OPENAI_MODEL", "gpt-4o"),
-            )
-            client = AzureOpenAI(
-                azure_endpoint=azure_endpoint,
-                api_key=gpt_api_key,
-                api_version=azure_api_version,
-            )
-            return client, gpt_model
-
-        gpt_model = os.getenv("OPENAI_MODEL", "gpt-4o")
-        client = OpenAI(api_key=gpt_api_key, base_url=os.getenv(
-            "OPENAI_BASE_URL") or None)
-        return client, gpt_model
+        return client, qwen_model
 
     def _write_yaml(self, path: Path, data: dict) -> None:
         path.write_text(yaml.safe_dump(data, allow_unicode=True,

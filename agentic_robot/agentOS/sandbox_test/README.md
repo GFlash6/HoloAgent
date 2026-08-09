@@ -18,7 +18,7 @@ Supported modes:
 Core capabilities:
 
 - accept long-form natural-language instructions
-- call OpenAI or Azure OpenAI to generate a DAG
+- call Qwen to generate a DAG
 - validate nodes, dependencies, cycles, and action legality
 - perform virtual execution before real execution
 - write YAML monitoring and result files
@@ -31,25 +31,13 @@ pip install openai requests pyyaml
 
 ## Environment Variables
 
-### LLM configuration
-
-Azure OpenAI:
+### Qwen configuration
 
 ```bash
-export GPT_PROVIDER=azure
-export AZURE_OPENAI_API_KEY=your_key
-export AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
-export AZURE_OPENAI_API_VERSION=2024-02-15-preview
-export AZURE_OPENAI_DEPLOYMENT=your_deployment_name
-```
-
-OpenAI-compatible endpoint:
-
-```bash
-export GPT_PROVIDER=openai
-export OPENAI_API_KEY=your_key
-export OPENAI_MODEL=gpt-4o
-export OPENAI_BASE_URL=https://your-openai-compatible-endpoint/v1
+export QWEN_API_KEY=your_key
+# Optional overrides:
+export QWEN_MODEL=qwen3.7-plus
+export QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 ```
 
 ### Robot and control center endpoints

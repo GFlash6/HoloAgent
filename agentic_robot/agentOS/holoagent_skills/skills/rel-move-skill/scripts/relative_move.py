@@ -11,28 +11,10 @@ from urllib import request
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Send a relative movement request")
-    parser.add_argument("--host", default="127.0.0.1",
-                        help="Robot service host")
-    parser.add_argument("--port", type=int, default=8000,
-                        help="Robot service port")
-    parser.add_argument(
-        "--forward",
-        type=float,
-        default=0.0,
-        help="Target relative forward displacement in meters",
-    )
-    parser.add_argument(
-        "--left",
-        type=float,
-        default=0.0,
-        help="Target relative left displacement in meters",
-    )
-    parser.add_argument(
-        "--rotation",
-        type=float,
-        default=0.0,
-        help="Target heading rotation relative to current heading in degrees",
-    )
+    parser.add_argument("--robot-url", default="http://127.0.0.1:8000",
+                        help="Robot service base URL")
+    parser.add_argument("--cmd", required=True,
+                        help="Relative target as forward,left,degrees")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print request without sending")
     return parser
@@ -42,12 +24,8 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
-    payload = {
-        "forward": args.forward,
-        "left": args.left,
-        "rotation": args.rotation,
-    }
-    url = f"http://{args.host}:{args.port}/api/relative_nav"
+    payload = {"cmd": args.cmd}
+    url = f"{args.robot_url.rstrip('/')}/api/relative_nav"
 
     print(f"POST {url}")
     print(json.dumps(payload, ensure_ascii=False, indent=2))
