@@ -1,0 +1,22 @@
+session_datetime: '20260809_231542_079899'
+session_dir: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260809_231542_079899
+mode: single_robot
+dry_run: true
+created_at: '2026-08-09T23:15:42.112484'
+status: planning_failed
+validation_conclusion: DAG 规划失败，无法进入虚拟执行验证
+execution_conclusion: 未执行
+events:
+- timestamp: '2026-08-09T23:15:42.114218'
+  event_type: instruction_received
+  payload:
+    instruction: 去一楼实验室的充电桩，然后向前移动0.3米并挥手
+- timestamp: '2026-08-09T23:15:55.094569'
+  event_type: dag_generation_failed
+  payload:
+    reason: 'Expecting value: line 1 column 1 (char 0)'
+subtasks: []
+artifacts:
+  dag_plan: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260809_231542_079899/dag_plan.yaml
+  virtual_validation: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260809_231542_079899/virtual_validation.yaml
+  execution_result: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260809_231542_079899/execution_result.yaml

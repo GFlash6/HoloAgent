@@ -1,0 +1,10 @@
+instruction: 13号机器人使用语义导航前往 yellow plastic crate 附近
+recorded_at: '2026-08-10T01:01:31.899650'
+dag:
+  description: 13号机器人使用语义导航前往 yellow plastic crate 附近
+  nodes:
+  - id: r13_nav_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,yellow plastic crate
+    depends_on: []

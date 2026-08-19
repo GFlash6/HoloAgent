@@ -1,0 +1,10 @@
+instruction: 向前移动0.65米
+recorded_at: '2026-08-09T23:54:44.705804'
+dag:
+  description: 机器人向前相对移动0.65米
+  nodes:
+  - id: r13_rel_move_forward
+    robot_id: 13
+    skill: rel-move-skill
+    target: 0.65,0,0
+    depends_on: []

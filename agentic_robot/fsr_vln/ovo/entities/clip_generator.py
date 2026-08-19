@@ -37,7 +37,9 @@ class CLIPGenerator:
 
         self.model_card = config.get("model_card", "SigLIP-384")
         self.model, self.tokenizer, self.preprocess, clip_dim = clip_utils.load_clip_model(
-            self.model_card, config.get("use_half", False))
+            self.model_card,
+            config.get("use_half", False),
+            config.get("model_path"))
         self.clip_dim = clip_dim
 
         if self.model_card[:6] == "SigLIP":

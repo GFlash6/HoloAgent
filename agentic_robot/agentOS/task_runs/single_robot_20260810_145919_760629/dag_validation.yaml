@@ -1,0 +1,65 @@
+recorded_at: '2026-08-10T14:59:57.906002'
+status: passed
+conclusion: DAG 静态校验通过：依赖和单机器人串行约束有效
+checks:
+- name: deps_exist::r13_nav_blue_crate
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r13_rel_move_1
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r13_nav_yellow_crate
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r13_rel_move_2
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r13_nav_packing_table
+  passed: true
+  missing_dependencies: []
+- name: single_robot_serialization::r13_nav_blue_crate
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r13_rel_move_1
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r13_nav_yellow_crate
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r13_rel_move_2
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r13_nav_packing_table
+  passed: true
+  conflicting_nodes: []
+dag_execution_order:
+- step: 1
+  parallel_nodes:
+  - id: r13_nav_blue_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,blue plastic crate
+- step: 2
+  parallel_nodes:
+  - id: r13_rel_move_1
+    robot_id: 13
+    skill: rel-move-skill
+    target: -0.7,0,180
+- step: 3
+  parallel_nodes:
+  - id: r13_nav_yellow_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,yellow plastic crate
+- step: 4
+  parallel_nodes:
+  - id: r13_rel_move_2
+    robot_id: 13
+    skill: rel-move-skill
+    target: -0.6,0,180
+- step: 5
+  parallel_nodes:
+  - id: r13_nav_packing_table
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,packing table

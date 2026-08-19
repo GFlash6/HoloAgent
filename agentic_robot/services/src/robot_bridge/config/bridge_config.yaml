@@ -101,3 +101,11 @@ reverse:
       robot_id: "${ROBOT_ID}"
       waypoint_name: "${msg.data}"
     description: "到点后 POST 到控制中心（对应原 fastapi_robot.py waypoint_reached_callback）"
+
+  - ros_sub: arm_action_result
+    msg_type: std_msgs/String
+    http_post: "${control_url}/robot_reached"
+    payload:
+      robot_id: "${ROBOT_ID}"
+      waypoint_name: "${msg.data}"
+    description: "机械臂 SDK 真实执行结果上报控制中心"

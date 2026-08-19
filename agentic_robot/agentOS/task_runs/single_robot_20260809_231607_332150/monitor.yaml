@@ -1,0 +1,35 @@
+session_datetime: '20260809_231607_332150'
+session_dir: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260809_231607_332150
+mode: single_robot
+dry_run: true
+created_at: '2026-08-09T23:16:07.365329'
+status: dry_run_completed
+validation_conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+execution_conclusion: 当前为 dry-run，仅完成虚拟执行验证，未触发真实物理执行
+events:
+- timestamp: '2026-08-09T23:16:07.367053'
+  event_type: instruction_received
+  payload:
+    instruction: 去一楼实验室的充电桩，然后向前移动0.3米并挥手
+- timestamp: '2026-08-09T23:16:16.262876'
+  event_type: dag_generated
+  payload:
+    node_count: 3
+    description: 13 机器语义导航到一楼实验室充电桩，向前微调 0.3 米后挥手
+- timestamp: '2026-08-09T23:16:16.266979'
+  event_type: virtual_validation_completed
+  payload:
+    status: passed
+    conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+- timestamp: '2026-08-09T23:16:16.270780'
+  event_type: physical_execution_skipped
+  payload:
+    recorded_at: '2026-08-09T23:16:16.268395'
+    status: skipped
+    conclusion: 当前为 dry-run，仅完成虚拟执行验证，未触发真实物理执行
+    executed_nodes: []
+subtasks: []
+artifacts:
+  dag_plan: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260809_231607_332150/dag_plan.yaml
+  virtual_validation: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260809_231607_332150/virtual_validation.yaml
+  execution_result: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260809_231607_332150/execution_result.yaml

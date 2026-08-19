@@ -1,0 +1,7 @@
+dataset_name: isaacg1
+mapping:
+  max_frame_points: 100000
+  k_pooling: 1
+  downscale_res: 2
+tracking:
+  track_every: 1

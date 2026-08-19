@@ -1,0 +1,70 @@
+session_datetime: '20260810_005149_080225'
+session_dir: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_005149_080225
+mode: single_robot
+dry_run: false
+created_at: '2026-08-10T00:51:49.112150'
+status: execution_failed
+validation_conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+execution_conclusion: 真实执行失败：失败节点=['r13_sem_nav_blue_crate']，剩余节点=[]
+events:
+- timestamp: '2026-08-10T00:51:49.114192'
+  event_type: instruction_received
+  payload:
+    instruction: 让13号机器人导航到一楼仓库里的 blue crate
+- timestamp: '2026-08-10T00:51:54.184249'
+  event_type: dag_generated
+  payload:
+    node_count: 1
+    description: 13号机器人导航到一楼仓库里的 blue crate
+- timestamp: '2026-08-10T00:51:54.187241'
+  event_type: virtual_validation_completed
+  payload:
+    status: passed
+    conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+- timestamp: '2026-08-10T00:51:54.190977'
+  event_type: node_execution_started
+  payload:
+    node_id: r13_sem_nav_blue_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: 一楼,仓库,blue crate
+    started_at: '2026-08-10T00:51:54.188979'
+- timestamp: '2026-08-10T00:51:54.198535'
+  event_type: navigation_wait_started
+  payload:
+    robot_id: 13
+    target: nav_finish
+    started_at: '2026-08-10T00:51:54.198523'
+- timestamp: '2026-08-10T00:51:55.208264'
+  event_type: navigation_wait_failed
+  payload:
+    robot_id: 13
+    target: struck
+- timestamp: '2026-08-10T00:51:55.212494'
+  event_type: node_execution_finished
+  payload:
+    node_id: r13_sem_nav_blue_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: 一楼,仓库,blue crate
+    success: false
+    finished_at: '2026-08-10T00:51:55.210455'
+    duration_sec: 1.021
+- timestamp: '2026-08-10T00:51:55.219389'
+  event_type: physical_execution_completed
+  payload:
+    status: failed
+    conclusion: 真实执行失败：失败节点=['r13_sem_nav_blue_crate']，剩余节点=[]
+subtasks:
+- node_id: r13_sem_nav_blue_crate
+  robot_id: 13
+  skill: sem-nav-skill
+  target: 一楼,仓库,blue crate
+  status: failed
+  started_at: '2026-08-10T00:51:54.188979'
+  finished_at: '2026-08-10T00:51:55.210455'
+  duration_sec: 1.021
+artifacts:
+  dag_plan: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_005149_080225/dag_plan.yaml
+  virtual_validation: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_005149_080225/virtual_validation.yaml
+  execution_result: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_005149_080225/execution_result.yaml

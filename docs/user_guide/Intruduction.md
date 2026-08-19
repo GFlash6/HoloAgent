@@ -7,6 +7,8 @@ The repository currently supports two operating styles:
 - **Agentic mode**: skills are registered and composed from natural-language tasks.
 - **Workflow mode**: predefined scripts orchestrate known workflows for debugging.
 
+Agentic mode starts from `agentic_robot/agentOS/holoagent_agent.py`. Voice interaction is optional input and is not the primary task execution path.
+
 This project targets real robot deployment environments. A hardware-free quick start and public model distribution workflow are still being prepared.
 
 ## Repository Layout
@@ -15,6 +17,7 @@ This project targets real robot deployment environments. A hardware-free quick s
 agentic_robot_system/
 ├── agentic_robot/
 │   ├── agentOS/
+│   │   ├── holoagent_agent.py # Main task planner and skill dispatcher
 │   │   ├── holoagent_skills/ # Skill registry, per-skill docs, examples, and CRUD helpers
 │   │   ├── run_dameon/       # Background daemon helpers
 │   │   └── sandbox_test/     # Long-horizon and integration test scripts

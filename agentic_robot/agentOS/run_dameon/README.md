@@ -20,6 +20,8 @@ python3 agentic_robot/agentOS/run_dameon/run_g1_background_daemon.py
 
 Use this helper when a robot-side process must remain alive independently from an interactive shell session or a short-lived launcher.
 
+The default groups start `agent` rather than `audio`. Add the `audio` group only when voice input is needed.
+
 ## Notes
 
 - The directory name `run_dameon` is preserved to match the current repository layout.

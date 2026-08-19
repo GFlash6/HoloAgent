@@ -1,0 +1,17 @@
+recorded_at: '2026-08-10T01:00:25.199743'
+status: passed
+conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+checks:
+- name: deps_exist::r13_nav_crate
+  passed: true
+  missing_dependencies: []
+- name: single_robot_serialization::r13_nav_crate
+  passed: true
+  conflicting_nodes: []
+virtual_execution_trace:
+- step: 1
+  parallel_nodes:
+  - id: r13_nav_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,blue plastic crate

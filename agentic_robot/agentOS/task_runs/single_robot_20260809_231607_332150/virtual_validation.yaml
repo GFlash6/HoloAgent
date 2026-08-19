@@ -1,0 +1,41 @@
+recorded_at: '2026-08-09T23:16:16.264177'
+status: passed
+conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+checks:
+- name: deps_exist::r13_nav_to_charger
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r13_rel_move_forward
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r13_wave
+  passed: true
+  missing_dependencies: []
+- name: single_robot_serialization::r13_nav_to_charger
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r13_rel_move_forward
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r13_wave
+  passed: true
+  conflicting_nodes: []
+virtual_execution_trace:
+- step: 1
+  parallel_nodes:
+  - id: r13_nav_to_charger
+    robot_id: 13
+    skill: sem-nav-skill
+    target: 一楼,实验室,充电桩
+- step: 2
+  parallel_nodes:
+  - id: r13_rel_move_forward
+    robot_id: 13
+    skill: rel-move-skill
+    target: 0.3,0,0
+- step: 3
+  parallel_nodes:
+  - id: r13_wave
+    robot_id: 13
+    skill: arm-skill
+    target: wave_above_head

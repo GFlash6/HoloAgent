@@ -15,9 +15,11 @@ ROS parameters:
 Topics subscribed:
   chat_signal_pub  (std_msgs/String) — 命名 signal 命令
   object_pose      (geometry_msgs/PoseStamped) — 来自 semantic_goal / relative_goal
+  semantic_approach_pose (geometry_msgs/PoseStamped) — 语义粗导航内部目标
 
 Topics published:
   waypoint_reached (std_msgs/String) — 到点通知（包含 waypoint name 或 "struck"）
+  semantic_approach_status (std_msgs/String) — 语义粗导航内部状态
   arm_signal_pub   (std_msgs/String) — arm skill 命令（替换原 waypoint_reached 回环）
 """
 
@@ -140,10 +142,18 @@ class WaypointNavigator(Node):
             self.semantic_callback,
             10
         )
+        self.semantic_approach_sub = self.create_subscription(
+            PoseStamped,
+            'semantic_approach_pose',
+            self.semantic_approach_callback,
+            10
+        )
 
         # ---------- publishers ----------
         self.waypoint_reached_pub = self.create_publisher(
             String, 'waypoint_reached', 10)
+        self.semantic_approach_status_pub = self.create_publisher(
+            String, 'semantic_approach_status', 10)
         self.arm_signal_pub = self.create_publisher(
             String, 'arm_signal_pub', 10)
 
@@ -155,6 +165,7 @@ class WaypointNavigator(Node):
         self.total_waypoints = 0
         self.navigation_active = False
         self.recoveries = 0
+        self.single_pose_status_pub = self.waypoint_reached_pub
 
         # Expose registry as ROS parameters (~/signals/<name>/*)
         self._declare_registry_params()
@@ -186,10 +197,31 @@ class WaypointNavigator(Node):
 
     def semantic_callback(self, msg):
         self.get_logger().info("Navigating to target pose from object_pose...")
+        self._start_single_pose(msg, self.waypoint_reached_pub)
+
+    def semantic_approach_callback(self, msg):
+        self.get_logger().info("Navigating to internal semantic approach pose...")
+        self._start_single_pose(msg, self.semantic_approach_status_pub)
+
+    def _start_single_pose(self, msg, status_publisher):
+        if self.navigation_active:
+            self.get_logger().warning("Navigation already active, ignoring pose goal")
+            rejected = String()
+            rejected.data = "nav_failed"
+            status_publisher.publish(rejected)
+            return
+        self.navigation_active = True
+        self.single_pose_status_pub = status_publisher
         self.recoveries = 0
         self.navigator.goToPose(msg)
         self.navigation_timer = self.create_timer(
             0.5, self.check_navigation_status2)
+
+    def _publish_single_pose_status(self, status):
+        msg = String()
+        msg.data = status
+        self.single_pose_status_pub.publish(msg)
+        self.get_logger().info(f"Published single-pose status: {status}")
 
     # ------------------------------------------------------------------
     # named signal callback — registry-first, fallback to hardcoded
@@ -431,19 +463,20 @@ class WaypointNavigator(Node):
             if feedback and feedback.number_of_recoveries > self.recoveries + 2:
                 self.get_logger().info("Navigation stuck!")
                 self.recoveries = feedback.number_of_recoveries
-                self.publish_waypoint_reached("struck")
+                self._publish_single_pose_status("struck")
             return
 
         result = self.navigator.getResult()
         if result == TaskResult.SUCCEEDED:
             wp_name = "nav_finish"
-            self.publish_waypoint_reached(wp_name)
+            self._publish_single_pose_status(wp_name)
             self.get_logger().info("Navigation to pose completed.")
         else:
             self.get_logger().error(f"Navigation to pose failed: {result}")
             status = ("nav_canceled" if result == TaskResult.CANCELED
                       else "nav_failed")
-            self.publish_waypoint_reached(status)
+            self._publish_single_pose_status(status)
+        self.navigation_active = False
         self.destroy_timer(self.navigation_timer)
 
 

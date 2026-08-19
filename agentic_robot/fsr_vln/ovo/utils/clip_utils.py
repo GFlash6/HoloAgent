@@ -2,6 +2,8 @@ from typing import Any, Tuple
 from torchvision.transforms import Resize, Normalize, CenterCrop, Compose
 import open_clip
 import torch
+from pathlib import Path
+import os
 
 
 def siglip_cosine_similarity(
@@ -67,8 +69,21 @@ def fuse_clips(
     return clip_embed
 
 
+def resolve_siglip_snapshot(model_path: str | Path) -> Tuple[Path, Path]:
+    snapshot = Path(model_path).expanduser()
+    weights = snapshot / "open_clip_model.safetensors"
+    tokenizer = snapshot / "tokenizer.json"
+    if not weights.is_file() or not tokenizer.is_file():
+        raise FileNotFoundError(
+            f"Incomplete local SigLIP snapshot: {snapshot} "
+            "(requires open_clip_model.safetensors and tokenizer.json)")
+    return weights, snapshot
+
+
 def load_clip_model(
-        model_card: str, use_half: bool) -> Tuple[Any, Any, Compose, str]:
+        model_card: str,
+        use_half: bool,
+        model_path: str | None = None) -> Tuple[Any, Any, Compose, str]:
 
     cards = {
         "SigLIP": 'hf-hub:timm/ViT-SO400M-14-SigLIP',  # 224x224
@@ -92,11 +107,21 @@ def load_clip_model(
     }
     assert model_card in list(
         cards.keys()), f"Select one of {cards.keys()} model cards"
-    model, preprocess = open_clip.create_model_from_pretrained(
-        cards[model_card],
-        precision="fp32" if not use_half else "fp16")
-
-    tokenizer = open_clip.get_tokenizer(cards[model_card])
+    precision = "fp16" if use_half else "fp32"
+    if model_path:
+        weights, snapshot = resolve_siglip_snapshot(
+            Path(os.path.expandvars(model_path)))
+        architecture = cards[model_card].split("/", 1)[1]
+        model, _, preprocess = open_clip.create_model_and_transforms(
+            architecture,
+            pretrained=str(weights),
+            precision=precision)
+        tokenizer = open_clip.tokenizer.HFTokenizer(
+            str(snapshot), context_length=64, clean="canonicalize")
+    else:
+        model, preprocess = open_clip.create_model_from_pretrained(
+            cards[model_card], precision=precision)
+        tokenizer = open_clip.get_tokenizer(cards[model_card])
 
     tf_to_keep = [
         tf for tf in preprocess.transforms if isinstance(

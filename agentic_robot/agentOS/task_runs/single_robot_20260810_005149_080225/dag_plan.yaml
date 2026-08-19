@@ -1,0 +1,10 @@
+instruction: 让13号机器人导航到一楼仓库里的 blue crate
+recorded_at: '2026-08-10T00:51:54.183435'
+dag:
+  description: 13号机器人导航到一楼仓库里的 blue crate
+  nodes:
+  - id: r13_sem_nav_blue_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: 一楼,仓库,blue crate
+    depends_on: []

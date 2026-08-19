@@ -143,11 +143,25 @@ class Graph:
             model_name = str(self.cfg.models.clip.checkpoint)
             if not model_name:
                 model_name = "hf-hub:timm/ViT-SO400M-14-SigLIP-384"
-            self.clip_model, self.preprocess = open_clip.create_model_from_pretrained(
-                model_name, precision='fp16', )
+            local_snapshot = Path(os.path.expandvars(model_name)).expanduser()
+            if local_snapshot.is_dir():
+                weights = local_snapshot / "open_clip_model.safetensors"
+                tokenizer_json = local_snapshot / "tokenizer.json"
+                if not weights.is_file() or not tokenizer_json.is_file():
+                    raise FileNotFoundError(
+                        f"Incomplete local SigLIP snapshot: {local_snapshot}")
+                self.clip_model, _, self.preprocess = open_clip.create_model_and_transforms(
+                    "ViT-SO400M-14-SigLIP-384",
+                    pretrained=str(weights),
+                    precision="fp16")
+                self.clip_tokenizer = open_clip.tokenizer.HFTokenizer(
+                    str(local_snapshot), context_length=64, clean="canonicalize")
+            else:
+                self.clip_model, self.preprocess = open_clip.create_model_from_pretrained(
+                    model_name, precision='fp16')
+                self.clip_tokenizer = open_clip.get_tokenizer(model_name)
             self.clip_model = self.clip_model.to(self.device)
             self.clip_feat_dim = CLIP_DIM["SigLIP-384"]
-            self.clip_tokenizer = open_clip.get_tokenizer(model_name)
 
         if self.clip_tokenizer is not None:
             self.clip_model.tokenizer = self.clip_tokenizer

@@ -1,0 +1,10 @@
+recorded_at: '2026-08-10T00:53:55.800825'
+status: passed
+conclusion: 真实执行完成：所有 DAG 节点已按验证后的顺序执行成功
+completed_nodes:
+- r13_nav_warehouse_crate
+failed_nodes: []
+remaining_nodes: []
+execution_trace:
+- node_id: r13_nav_warehouse_crate
+  success: true

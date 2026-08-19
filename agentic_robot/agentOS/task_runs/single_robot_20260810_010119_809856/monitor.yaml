@@ -1,0 +1,72 @@
+session_datetime: '20260810_010119_809856'
+session_dir: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_010119_809856
+mode: single_robot
+dry_run: false
+created_at: '2026-08-10T01:01:19.838914'
+status: completed
+validation_conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+execution_conclusion: 真实执行完成：所有 DAG 节点已按验证后的顺序执行成功
+events:
+- timestamp: '2026-08-10T01:01:19.840677'
+  event_type: instruction_received
+  payload:
+    instruction: 13号机器人使用语义导航前往 yellow plastic crate 附近
+- timestamp: '2026-08-10T01:01:31.900572'
+  event_type: dag_generated
+  payload:
+    node_count: 1
+    description: 13号机器人使用语义导航前往 yellow plastic crate 附近
+- timestamp: '2026-08-10T01:01:31.903698'
+  event_type: virtual_validation_completed
+  payload:
+    status: passed
+    conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+- timestamp: '2026-08-10T01:01:31.907093'
+  event_type: node_execution_started
+  payload:
+    node_id: r13_nav_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,yellow plastic crate
+    started_at: '2026-08-10T01:01:31.905572'
+- timestamp: '2026-08-10T01:01:31.914328'
+  event_type: navigation_wait_started
+  payload:
+    robot_id: 13
+    target: nav_finish
+    started_at: '2026-08-10T01:01:31.914317'
+- timestamp: '2026-08-10T01:01:35.939657'
+  event_type: navigation_wait_completed
+  payload:
+    robot_id: 13
+    target: nav_finish
+    finished_at: '2026-08-10T01:01:35.939642'
+    completion_source: nav_finish
+- timestamp: '2026-08-10T01:01:35.944093'
+  event_type: node_execution_finished
+  payload:
+    node_id: r13_nav_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,yellow plastic crate
+    success: true
+    finished_at: '2026-08-10T01:01:35.941953'
+    duration_sec: 4.036
+- timestamp: '2026-08-10T01:01:35.950349'
+  event_type: physical_execution_completed
+  payload:
+    status: passed
+    conclusion: 真实执行完成：所有 DAG 节点已按验证后的顺序执行成功
+subtasks:
+- node_id: r13_nav_crate
+  robot_id: 13
+  skill: sem-nav-skill
+  target: current,current,yellow plastic crate
+  status: passed
+  started_at: '2026-08-10T01:01:31.905572'
+  finished_at: '2026-08-10T01:01:35.941953'
+  duration_sec: 4.036
+artifacts:
+  dag_plan: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_010119_809856/dag_plan.yaml
+  virtual_validation: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_010119_809856/virtual_validation.yaml
+  execution_result: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_010119_809856/execution_result.yaml

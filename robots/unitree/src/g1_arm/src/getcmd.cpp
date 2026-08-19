@@ -45,7 +45,7 @@ public:
     navstatus_subscription_ = this->create_subscription<std_msgs::msg::String>(
         "waypoint_reached", 10, std::bind(&CmdSubscriber::topic_callback, this, std::placeholders::_1));
     armcmd_subscription_ = this->create_subscription<std_msgs::msg::String>(
-        "chat_signal_pub", 10, std::bind(&CmdSubscriber::topic_callback, this, std::placeholders::_1));
+        "arm_signal_pub", 10, std::bind(&CmdSubscriber::topic_callback, this, std::placeholders::_1));
     // add interface for holomotion/motion-tracking
     motion_tracking_cmd_subscription_ = this->create_subscription<std_msgs::msg::String>(
         "motion_tracking", 10, std::bind(&CmdSubscriber::topic_callback, this, std::placeholders::_1));

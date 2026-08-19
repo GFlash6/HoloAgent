@@ -12,6 +12,7 @@ import gc
 import os
 import shutil
 import rclpy
+from rclpy.signals import SignalHandlerOptions
 from rclpy.node import Node
 from ovo.utils import io_utils, gen_utils, eval_utils
 from ovo.entities.semantic_mapping_online import SemanticMapping
@@ -111,13 +112,11 @@ def run_semantic_mapping(data_dir: str, scene: str, dataset: str, experiment_nam
         f"configs/{dataset}/{dataset.lower()}.yaml")
     io_utils.update_recursive(config, config_dataset)
 
-    if os.path.exists(f"configs/{dataset}/{dataset.lower()}.yaml"):
-        config_scene = io_utils.load_config(
-            f"configs/{dataset}/{dataset.lower()}.yaml")
-        io_utils.update_recursive(config, config_scene)
-
     if "data" not in config:
         config["data"] = {}
+    config["data"]["dataset_name"] = config_dataset["dataset_name"]
+    config["data"]["H"] = config["cam"]["H"]
+    config["data"]["W"] = config["cam"]["W"]
     # config["data"]["scene_name"] = scene
     # output_path = Path(f"data/output/{dataset}/")
     config["data"]["scene_name"] = scene
@@ -160,6 +159,7 @@ def run_semantic_mapping(data_dir: str, scene: str, dataset: str, experiment_nam
         run_ros_semantic_mapping(config, output_path)  # 修复拼写错误
     except Exception as e:
         print(f"运行时发生错误: {e}")
+        raise
     finally:
         if config.get("use_wandb", False):
             wandb.finish()
@@ -169,12 +169,22 @@ def run_semantic_mapping(data_dir: str, scene: str, dataset: str, experiment_nam
 
 # 修复拼写错误
 def run_ros_semantic_mapping(config: Dict[str, Any], output_path: str):
-    rclpy.init()
-    node = SemanticMapping(
-        config,
-        output_path,
-        scene=config["data"]["scene_name"])
-    node.spin()
+    # Keep the ROS context alive while SemanticMapping drains its worker and
+    # writes the checkpoint after SIGINT.  The default rclpy handler shuts the
+    # context down first, making the worker's final publishers fail instead.
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+    node = None
+    try:
+        node = SemanticMapping(
+            config,
+            output_path,
+            scene=config["data"]["scene_name"])
+        node.spin()
+    finally:
+        if node is not None:
+            node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 def main(args):

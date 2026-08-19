@@ -25,6 +25,8 @@ Use this skill for semantic navigation requests.
 ## Workflow
 
 1. Extract the semantic target as floor, room, and object level information.
+   If the user gives an unambiguous object but omits floor and room, use the
+   explicit current-context markers `current,current,object`.
 2. Confirm the target is specific enough for the robot to execute.
 3. Send the request through the documented HTTP or ROS interface.
 4. Monitor the returned status and stop for clarification if the target is ambiguous.
@@ -36,6 +38,8 @@ Use this skill for semantic navigation requests.
 - Prefer semantic navigation only when the task refers to rooms, floors, or objects.
 - If the target is ambiguous, ask for clarification.
 - Do not fabricate room names, floor labels, or object identifiers that are not provided.
+- `current` is a context marker, not a fabricated floor or room name; only use
+  it when the running scene has one current floor and room.
 
 ## Example
 

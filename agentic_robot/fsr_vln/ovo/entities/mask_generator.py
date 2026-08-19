@@ -109,13 +109,13 @@ class MaskGenerator:
         self.mask_generator = segment_utils.load_sam(
             config, device=self.device)
 
-        device_type = self.device.split(":")[0] if isinstance(
-            self.device, str) else self.device.type
-        with torch.no_grad() and torch.autocast(device_type=device_type, dtype=self.dtype):
-            self.mask_generator.generate(
-                np.random.rand(
-                    512, 512, 3).astype(
-                    np.float32))  # First pass for compilation
+        if not getattr(self.mask_generator, "is_remote", False):
+            device_type = self.device.split(":")[0] if isinstance(
+                self.device, str) else self.device.type
+            with torch.no_grad(), torch.autocast(
+                    device_type=device_type, dtype=self.dtype):
+                self.mask_generator.generate(
+                    np.zeros((512, 512, 3), dtype=np.uint8))
 
     def to(self, device: str) -> None:
         """
@@ -126,19 +126,34 @@ class MaskGenerator:
         """
         self.device = device
         if self.mask_generator:
-            self.mask_generator.predictor.model.to(device)
+            if getattr(self.mask_generator, "is_remote", False):
+                return
+            if hasattr(self.mask_generator, "to"):
+                self.mask_generator.to(device)
+            else:
+                self.mask_generator.predictor.model.to(device)
 
     def cpu(self) -> None:
         """Move predictor model to cpu device."""
         self.device = "cpu"
         if self.mask_generator:
-            self.mask_generator.predictor.model.cpu()
+            if getattr(self.mask_generator, "is_remote", False):
+                return
+            if hasattr(self.mask_generator, "cpu"):
+                self.mask_generator.cpu()
+            else:
+                self.mask_generator.predictor.model.cpu()
 
     def cuda(self) -> None:
         """Move predictor model to cuda default device."""
         self.device = "cuda"
         if self.mask_generator:
-            self.mask_generator.predictor.model.cuda()
+            if getattr(self.mask_generator, "is_remote", False):
+                return
+            if hasattr(self.mask_generator, "cuda"):
+                self.mask_generator.cuda()
+            else:
+                self.mask_generator.predictor.model.cuda()
 
     def get_masks(self, image: np.ndarray, frame_id: int = None):
         """
@@ -172,12 +187,17 @@ class MaskGenerator:
             - seg_map (np.ndarray): Segmentation map of shape (H,W) with pixel values in [-1, N), where each pixel value indicates the id of on of the N segmentation mask. Unasigned pixels have value -1.
             - binary_maps (np.ndarray): array of shape (N, H, W). Each pixel will have a value of 1 if it belongs to the nth segmentation mask, or 0 otherwise.
         """
+        remote = getattr(self.mask_generator, "is_remote", False)
         device_type = self.device.split(":")[0] if isinstance(
             self.device, str) else self.device.type
-        with torch.autocast(device_type=device_type, dtype=self.dtype):
+        with torch.autocast(
+                device_type=device_type, dtype=self.dtype, enabled=not remote):
             masks = self.mask_generator.generate(image)
             if len(masks) == 0:
-                return np.array([]), np.array([])
+                return (
+                    np.full(image.shape[:2], -1, dtype=np.int32),
+                    np.empty((0, *image.shape[:2]), dtype=bool),
+                )
 
             masks_default, = segment_utils.masks_update(
                 masks, iou_thr=self.nms_iou_th, score_thr=self.nms_score_th, inner_thr=self.nms_inner_th)

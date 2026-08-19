@@ -6,6 +6,8 @@ import gc
 from pathlib import Path
 from collections import deque
 import threading  # 新增
+import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ..utils import vis_utils
 
 import numpy as np
@@ -99,8 +101,12 @@ class SemanticMapping(Node):  # 修复拼写错误
         self.frame_id = -1
         # ---- 新增并发控制属性 ----
         self.queue_lock = threading.Lock()
+        self.semantic_state_lock = threading.RLock()
         self.shutdown_event = threading.Event()
         self.processing_thread = None
+        self.processing_error = None
+        self.query_server = None
+        self.query_server_thread = None
         self.start_time = time.time()
         self.seg_frames = 0
 
@@ -171,6 +177,7 @@ class SemanticMapping(Node):  # 修复拼写错误
             self.get_logger().info("SLAM Initialization done.")
         except Exception as e:
             self.get_logger().error(f"Module initialization failed: {e}")
+            raise RuntimeError("Semantic mapping module initialization failed") from e
         # ROS 同步订阅
         ros_cfg = config.get("topic", {})
         rgb_topic = ros_cfg.get(
@@ -277,6 +284,7 @@ class SemanticMapping(Node):  # 修复拼写错误
         self.query_pipe = None
         self.vis_pipe = None
 
+        self._start_query_server()
         self.get_logger().info("SemanticMapping node initialized, waiting for data...")
 
     # ---------------- 同步帧回调 ----------------
@@ -314,10 +322,16 @@ class SemanticMapping(Node):  # 修复拼写错误
         c2w_np[:3, :3] = R
         c2w_np[:3, 3] = [tx, ty, tz]
         # c2w_np = np.linalg.inv(c2w_np)  # cam to world
-        c2w_np = c2w_np @ np.array([[0, 0, 1, -0.01],
-                                    [-1, 0, 0, 0.06],
-                                    [0, -1, 0, 0.015],
-                                    [0, 0, 0, 1]], dtype=np.float32)
+        default_post_transform = [[0, 0, 1, -0.01],
+                                  [-1, 0, 0, 0.06],
+                                  [0, -1, 0, 0.015],
+                                  [0, 0, 0, 1]]
+        post_transform = np.asarray(
+            self.config.get("pose_post_transform", default_post_transform),
+            dtype=np.float32)
+        if post_transform.shape != (4, 4) or not np.isfinite(post_transform).all():
+            raise ValueError("pose_post_transform must be a finite 4x4 matrix")
+        c2w_np = c2w_np @ post_transform
 
         # 按配置低分辨率
         target_W = self.config["data"].get("W", self.width)
@@ -369,7 +383,6 @@ class SemanticMapping(Node):  # 修复拼写错误
 
             if fid % self.segment_every == 0:
                 self.seg_frames += 1
-
             if fid % 50 == 0:
                 gc.collect()
 
@@ -388,6 +401,15 @@ class SemanticMapping(Node):  # 修复拼写错误
             if fid % self.segment_every == 0:
                 self.seg_frames += 1
 
+    def _processing_loop_guarded(self):
+        try:
+            self._processing_loop()
+        except BaseException as exc:
+            self.processing_error = exc
+            self.shutdown_event.set()
+            self.get_logger().error(
+                f"Frame processor failed: {type(exc).__name__}: {exc}")
+
     # ---------------- 主循环（重写，轻量化，仅 spin ROS） ----------------
     def spin(self):
         try:
@@ -395,7 +417,9 @@ class SemanticMapping(Node):  # 修复拼写错误
                 self._start_stream()
             # 启动后台处理线程
             self.processing_thread = threading.Thread(
-                target=self._processing_loop, name="FrameProcessor", daemon=True)
+                target=self._processing_loop_guarded,
+                name="FrameProcessor",
+                daemon=True)
             self.processing_thread.start()
 
             while rclpy.ok() and not self.shutdown_event.is_set():
@@ -407,19 +431,16 @@ class SemanticMapping(Node):  # 修复拼写错误
             self.shutdown_event.set()
             if self.processing_thread is not None:
                 self.processing_thread.join()
+            self._stop_query_server()
 
-            # 语义信息收尾
-            if self.obj_detect_track:
-                self.obj_detect_track.complete_semantic_info()
-
-            # 统计 FPS
-            if self.seg_frames > 0:
-                fps = self.seg_frames / (time.time() - self.start_time)
-                self.logger.log_fps(fps)
-
-            # 处理查询 & 保存
-            self._drain_queries()
-            self._finalize()
+            if self.processing_error is None:
+                if self.obj_detect_track:
+                    self.obj_detect_track.complete_semantic_info()
+                if self.seg_frames > 0:
+                    fps = self.seg_frames / (time.time() - self.start_time)
+                    self.logger.log_fps(fps)
+                self._drain_queries()
+                self._finalize()
 
             if self.stream and self.vis_process is not None:
                 try:
@@ -427,8 +448,116 @@ class SemanticMapping(Node):  # 修复拼写错误
                 except Exception:
                     pass
 
+        if self.processing_error is not None:
+            raise RuntimeError("Semantic mapping frame processor failed") from self.processing_error
+
+    def query_live_object(self, query: str) -> Dict[str, Any]:
+        """Return the best current OVO instance and its map-frame centroid."""
+        query = query.strip()
+        if not query:
+            raise ValueError("query is empty")
+        with self.semantic_state_lock, torch.no_grad():
+            object_ids = list(self.obj_detect_track.objects)
+            if not object_ids:
+                raise LookupError("online semantic map has no objects")
+            scores = self.obj_detect_track.query([query])[0].detach().float().cpu().numpy()
+            objects = [self.obj_detect_track.objects[object_id] for object_id in object_ids]
+            order = np.argsort(scores)[::-1]
+            best_index = int(order[0])
+            best_score = float(scores[best_index])
+            second_score = float(scores[int(order[1])]) if len(order) > 1 else float("-inf")
+            min_score = float(self.config.get("ros", {}).get("query_min_score", 0.1))
+            min_margin = float(self.config.get("ros", {}).get("query_min_margin", 0.03))
+            if not np.isfinite(best_score) or best_score < min_score:
+                raise LookupError(f"best score {best_score:.4f} is below {min_score:.4f}")
+            if np.isfinite(second_score) and best_score - second_score < min_margin:
+                raise RuntimeError(
+                    f"ambiguous result: margin {best_score - second_score:.4f} is below {min_margin:.4f}")
+
+            object_id = object_ids[best_index]
+            pcd, _, pcd_object_ids = self.slam_backbone.get_map()
+            pcd = pcd.detach().cpu().numpy()
+            pcd_object_ids = pcd_object_ids.detach().cpu().numpy()
+            if len(pcd) != len(pcd_object_ids):
+                raise RuntimeError("online map changed during query")
+            points = pcd[pcd_object_ids == object_id]
+            points = points[np.isfinite(points).all(axis=1)]
+            if not len(points):
+                raise LookupError(f"object {object_id} has no finite map points")
+            center = np.median(points, axis=0)
+            obj = objects[best_index]
+        return {
+            "status": "FOUND",
+            "object_query": query,
+            "online_object_id": int(object_id),
+            "score": best_score,
+            "second_score": second_score if np.isfinite(second_score) else None,
+            "center_map": center.tolist(),
+            "observation_count": len(obj.kfs_ids),
+            "last_frame_id": max(obj.kfs_ids) if obj.kfs_ids else None,
+            "source_timestamp_ms": int(time.time() * 1000),
+            "frame_id": self.global_pcd_frame_id,
+        }
+
+    def _start_query_server(self) -> None:
+        ros_config = self.config.get("ros", {})
+        if not ros_config.get("query_server_enabled", True):
+            return
+        node = self
+
+        class QueryHandler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                if self.path != "/query":
+                    self.send_error(404)
+                    return
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    payload = json.loads(self.rfile.read(length) or b"{}")
+                    result = node.query_live_object(str(payload.get("object_query", "")))
+                    body, status = json.dumps(result).encode("utf-8"), 200
+                except ValueError as exc:
+                    body, status = json.dumps({"detail": str(exc)}).encode("utf-8"), 400
+                except LookupError as exc:
+                    body, status = json.dumps({"detail": str(exc)}).encode("utf-8"), 404
+                except RuntimeError as exc:
+                    body, status = json.dumps({"detail": str(exc)}).encode("utf-8"), 409
+                except Exception as exc:
+                    node.get_logger().error(f"Live semantic query failed: {exc}")
+                    body, status = json.dumps({"detail": "live query failed"}).encode("utf-8"), 500
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format, *args):
+                return
+
+        host = str(ros_config.get("query_server_host", "127.0.0.1"))
+        port = int(ros_config.get("query_server_port", 8121))
+        self.query_server = ThreadingHTTPServer((host, port), QueryHandler)
+        self.query_server_thread = threading.Thread(
+            target=self.query_server.serve_forever,
+            name="SemanticQueryServer",
+            daemon=True)
+        self.query_server_thread.start()
+        self.get_logger().info(f"Live semantic query endpoint: http://{host}:{port}/query")
+
+    def _stop_query_server(self) -> None:
+        if self.query_server is None:
+            return
+        self.query_server.shutdown()
+        self.query_server.server_close()
+        if self.query_server_thread is not None:
+            self.query_server_thread.join(timeout=2.0)
+        self.query_server = None
+
     # ---------------- 单帧处理 ----------------
     def _process_frame(self, frame_data):
+        with self.semantic_state_lock:
+            return self._process_frame_unlocked(frame_data)
+
+    def _process_frame_unlocked(self, frame_data):
         """frame_data: (fid, rgb_lr, depth_lr, c2w_np[, rgb_full])"""
         fid, rgb_lr, depth_lr, c2w_np, *optional = frame_data
         # 直接传给 SLAM
@@ -453,7 +582,7 @@ class SemanticMapping(Node):  # 修复拼写错误
         # Segment
         if fid % self.segment_every == 0:
             with torch.no_grad(), torch.autocast(
-                device_type=self.device,
+                device_type=self.device.split(":", 1)[0],
                 dtype=torch.bfloat16,
                 enabled=self.device.startswith("cuda")
             ):
@@ -472,7 +601,7 @@ class SemanticMapping(Node):  # 修复拼写错误
 
                 scene_data = [fid, image, depth_lr, rgb_depth_ratio]
                 map_data = self.slam_backbone.get_map()
-                updated_ids = self.obj_detect_track.detect_and_track_objects(
+                updated_ids, _, _ = self.obj_detect_track.detect_and_track_objects(
                     scene_data, map_data, estimated_c2w)
                 if updated_ids is not None:
                     self.slam_backbone.update_pcd_obj_ids(updated_ids)

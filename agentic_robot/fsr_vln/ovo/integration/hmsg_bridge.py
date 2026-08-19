@@ -39,14 +39,12 @@ def _to_numpy(x):
 
 def _normalize_feat(feat: np.ndarray, target_dim: int) -> np.ndarray:
     feat = np.asarray(feat).reshape(-1)
-    feat = np.nan_to_num(feat)
-    if feat.shape[0] == target_dim:
-        return feat.astype(np.float32)
-    out = np.zeros((target_dim,), dtype=np.float32)
-    n_copy = min(target_dim, feat.shape[0])
-    if n_copy > 0:
-        out[:n_copy] = feat[:n_copy].astype(np.float32)
-    return out
+    if feat.shape[0] != target_dim:
+        raise ValueError(
+            f"Instance feature dimension {feat.shape[0]} != model dimension {target_dim}")
+    if not np.isfinite(feat).all() or np.linalg.norm(feat) < 1e-8:
+        raise ValueError("Instance feature is non-finite or zero")
+    return feat.astype(np.float32)
 
 
 def _extract_instance_feat_map(ovo_map_params: Dict) -> Dict[int, np.ndarray]:
@@ -133,7 +131,7 @@ def build_hmsg_from_ovo_output(
     if not ckpt_path.exists():
         raise FileNotFoundError(f"OVO checkpoint not found: {ckpt_path}")
 
-    ckpt = torch.load(ckpt_path, map_location="cpu")
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     map_params = ckpt.get("map_params", ckpt.get("gaussian_params", None))
     if map_params is None:
         raise ValueError(
@@ -162,11 +160,11 @@ def build_hmsg_from_ovo_output(
             break
 
     print(f"[HMSG] Inferred CLIP feature dim from OVO map: {inferred_dim}")
-    if inferred_dim is not None and inferred_dim not in _SUPPORTED_CLIP_TYPES_BY_DIM:
-        print(
-            f"[HMSG][WARN] Unsupported feature dim {inferred_dim}, fallback to ViT-B-32 (512) with feature trunc/pad."
-        )
-    clip_type = _SUPPORTED_CLIP_TYPES_BY_DIM.get(inferred_dim, "SigLIP-384")
+    if inferred_dim is None:
+        raise ValueError("OVO map has no instance features")
+    if inferred_dim not in _SUPPORTED_CLIP_TYPES_BY_DIM:
+        raise ValueError(f"Unsupported OVO instance feature dimension: {inferred_dim}")
+    clip_type = _SUPPORTED_CLIP_TYPES_BY_DIM[inferred_dim]
     clip_checkpoint = _DEFAULT_CLIP_CHECKPOINT_BY_TYPE[clip_type]
 
     base_cfg_dict = _build_default_hmsg_cfg(
@@ -183,6 +181,13 @@ def build_hmsg_from_ovo_output(
         cfg = OmegaConf.merge(OmegaConf.create(base_cfg_dict), user_cfg)
     else:
         cfg = OmegaConf.create(base_cfg_dict)
+
+    map_to_hmsg = np.asarray(
+        cfg.main.get("map_to_hmsg_transform", np.eye(4)), dtype=np.float32)
+    if map_to_hmsg.shape != (4, 4) or not np.isfinite(map_to_hmsg).all():
+        raise ValueError("main.map_to_hmsg_transform must be a finite 4x4 matrix")
+    xyz_h = np.column_stack((xyz, np.ones(len(xyz), dtype=np.float32)))
+    xyz = (map_to_hmsg @ xyz_h.T).T[:, :3]
 
     cfg.main.dataset = dataset_name.lower()
     cfg.main.scene_id = scene_name
@@ -234,10 +239,8 @@ def build_hmsg_from_ovo_output(
         hmsg.mask_pcds.append(obj_pcd)
         feat = feat_map.get(obj_id)
         if feat is None:
-            feat = np.zeros((hmsg.clip_feat_dim,), dtype=np.float32)
-        else:
-            feat = _normalize_feat(feat, hmsg.clip_feat_dim)
-        hmsg.mask_feats.append(feat)
+            raise ValueError(f"OVO instance {obj_id} has no semantic feature")
+        hmsg.mask_feats.append(_normalize_feat(feat, hmsg.clip_feat_dim))
 
     if not hmsg.mask_pcds:
         raise ValueError(

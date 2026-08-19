@@ -1,0 +1,17 @@
+recorded_at: '2026-08-11T20:21:10.792616'
+status: passed
+conclusion: DAG 静态校验通过：依赖和单机器人串行约束有效
+checks:
+- name: deps_exist::r13_rel_move
+  passed: true
+  missing_dependencies: []
+- name: single_robot_serialization::r13_rel_move
+  passed: true
+  conflicting_nodes: []
+dag_execution_order:
+- step: 1
+  parallel_nodes:
+  - id: r13_rel_move
+    robot_id: 13
+    skill: rel-move-skill
+    target: 0.6,0,30

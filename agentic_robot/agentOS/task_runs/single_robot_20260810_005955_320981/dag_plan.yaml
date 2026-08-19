@@ -1,0 +1,10 @@
+instruction: 让13号机器人导航到一楼仓库里的 packing table
+recorded_at: '2026-08-10T01:00:00.238454'
+dag:
+  description: 13号机器人导航到一楼仓库的 packing table
+  nodes:
+  - id: r13_sem_nav_packing_table
+    robot_id: 13
+    skill: sem-nav-skill
+    target: 一楼,仓库,packing table
+    depends_on: []

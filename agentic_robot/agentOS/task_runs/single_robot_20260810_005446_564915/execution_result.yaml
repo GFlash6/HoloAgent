@@ -1,0 +1,11 @@
+recorded_at: '2026-08-10T00:56:40.047412'
+status: failed
+conclusion: 真实执行失败：失败节点=['r13_move_backward']，剩余节点=['r13_nav_yellow_crate']
+completed_nodes: []
+failed_nodes:
+- r13_move_backward
+remaining_nodes:
+- r13_nav_yellow_crate
+execution_trace:
+- node_id: r13_move_backward
+  success: false

@@ -1,0 +1,16 @@
+instruction: 让13号机器人先向后移动0.8米，然后导航到一楼仓库里的 yellow crate
+recorded_at: '2026-08-10T00:54:52.943004'
+dag:
+  description: 13号机器人先向后移动0.8米，然后导航到一楼仓库里的 yellow crate
+  nodes:
+  - id: r13_move_backward
+    robot_id: 13
+    skill: rel-move-skill
+    target: -0.8,0,0
+    depends_on: []
+  - id: r13_nav_yellow_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: 一楼,仓库,yellow crate
+    depends_on:
+    - r13_move_backward

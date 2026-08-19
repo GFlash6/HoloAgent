@@ -1,11 +1,12 @@
 # AgentOS Overview
 
-`agentic_robot/agentOS` contains the runtime-facing components used by HoloAgent for skill registration, background execution, and long-horizon task validation.
+`agentic_robot/agentOS` contains the runtime-facing components used by HoloAgent for task planning, skill registration, execution, and validation. The primary path is natural-language task → Qwen DAG → validation → registered skill execution; audio is an optional input adapter.
 
 ## Directory Layout
 
 ```text
 agentOS/
+├── holoagent_agent.py # Main task planner and skill dispatcher
 ├── holoagent_skills/   # Skill registry, skill docs, examples, and CRUD helpers
 ├── run_dameon/         # Background daemon launcher and notes
 └── sandbox_test/       # Long-horizon planning and dry-run validation scripts
@@ -40,6 +41,13 @@ Contains long-horizon text instruction runners and dry-run examples for single-r
 3. [`sandbox_test/README.md`](sandbox_test/README.md)
 
 ## Typical Usage
+
+### Run the main Agent
+
+```bash
+python3 agentic_robot/agentOS/holoagent_agent.py --dry-run \
+  --task "向前移动0.5米，然后挥手"
+```
 
 ### Validate the skill registry
 

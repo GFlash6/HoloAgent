@@ -1,0 +1,22 @@
+session_datetime: '20260810_005535_036078'
+session_dir: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_005535_036078
+mode: single_robot
+dry_run: false
+created_at: '2026-08-10T00:55:35.060683'
+status: planning_failed
+validation_conclusion: DAG 规划失败，无法进入虚拟执行验证
+execution_conclusion: 未执行
+events:
+- timestamp: '2026-08-10T00:55:35.062536'
+  event_type: instruction_received
+  payload:
+    instruction: 13号机器人使用语义导航前往 blue plastic crate 附近
+- timestamp: '2026-08-10T00:55:41.573975'
+  event_type: dag_generation_failed
+  payload:
+    reason: 'Expecting value: line 1 column 1 (char 0)'
+subtasks: []
+artifacts:
+  dag_plan: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_005535_036078/dag_plan.yaml
+  virtual_validation: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_005535_036078/virtual_validation.yaml
+  execution_result: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_005535_036078/execution_result.yaml

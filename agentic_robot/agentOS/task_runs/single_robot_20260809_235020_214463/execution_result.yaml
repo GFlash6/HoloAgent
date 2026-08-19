@@ -1,0 +1,10 @@
+recorded_at: '2026-08-09T23:52:27.184400'
+status: failed
+conclusion: 真实执行失败：失败节点=['rel_move_forward']，剩余节点=[]
+completed_nodes: []
+failed_nodes:
+- rel_move_forward
+remaining_nodes: []
+execution_trace:
+- node_id: rel_move_forward
+  success: false

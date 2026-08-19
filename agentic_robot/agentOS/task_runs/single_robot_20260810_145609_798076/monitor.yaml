@@ -1,0 +1,79 @@
+session_datetime: '20260810_145609_798076'
+session_dir: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_145609_798076
+mode: single_robot
+dry_run: false
+created_at: '2026-08-10T14:56:09.827489'
+status: execution_failed
+validation_conclusion: DAG 静态校验通过：依赖和单机器人串行约束有效
+execution_conclusion: 真实执行失败：失败节点=['r13_rel_move_1']，剩余节点=['r13_rel_move_2', 'r13_sem_nav_blue',
+  'r13_sem_nav_yellow']
+events:
+- timestamp: '2026-08-10T14:56:09.829254'
+  event_type: instruction_received
+  payload:
+    instruction: 13号机器人先后退0.7米并保持当前方向；完成后使用语义导航前往 blue plastic crate 附近；到达后再后退0.6米并左转15度；最后使用语义导航前往
+      yellow plastic crate 附近。四个步骤必须严格依次执行。
+- timestamp: '2026-08-10T14:56:26.946688'
+  event_type: dag_generated
+  payload:
+    node_count: 4
+    description: 13号机器人依次执行：后退0.7米、语义导航到蓝色塑料箱、后退0.6米并左转15度、语义导航到黄色塑料箱
+- timestamp: '2026-08-10T14:56:26.950575'
+  event_type: dag_validation_completed
+  payload:
+    status: passed
+    conclusion: DAG 静态校验通过：依赖和单机器人串行约束有效
+- timestamp: '2026-08-10T14:56:26.954518'
+  event_type: node_execution_started
+  payload:
+    node_id: r13_rel_move_1
+    robot_id: 13
+    skill: rel-move-skill
+    target: -0.7,0,0
+    started_at: '2026-08-10T14:56:26.952079'
+- timestamp: '2026-08-10T14:56:26.961664'
+  event_type: navigation_wait_started
+  payload:
+    robot_id: 13
+    target: nav_finish
+    started_at: '2026-08-10T14:56:26.961653'
+- timestamp: '2026-08-10T14:58:27.130339'
+  event_type: navigation_wait_timeout
+  payload:
+    robot_id: 13
+    target: nav_finish
+    finished_at: '2026-08-10T14:58:27.130281'
+    timeout_sec: 120.0
+- timestamp: '2026-08-10T14:58:27.639646'
+  event_type: navigation_cancel_confirmed
+  payload:
+    robot_id: 13
+- timestamp: '2026-08-10T14:58:27.645670'
+  event_type: node_execution_finished
+  payload:
+    node_id: r13_rel_move_1
+    robot_id: 13
+    skill: rel-move-skill
+    target: -0.7,0,0
+    success: false
+    finished_at: '2026-08-10T14:58:27.642967'
+    duration_sec: 120.691
+- timestamp: '2026-08-10T14:58:27.653415'
+  event_type: physical_execution_completed
+  payload:
+    status: failed
+    conclusion: 真实执行失败：失败节点=['r13_rel_move_1']，剩余节点=['r13_rel_move_2', 'r13_sem_nav_blue',
+      'r13_sem_nav_yellow']
+subtasks:
+- node_id: r13_rel_move_1
+  robot_id: 13
+  skill: rel-move-skill
+  target: -0.7,0,0
+  status: failed
+  started_at: '2026-08-10T14:56:26.952079'
+  finished_at: '2026-08-10T14:58:27.642967'
+  duration_sec: 120.691
+artifacts:
+  dag_plan: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_145609_798076/dag_plan.yaml
+  dag_validation: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_145609_798076/dag_validation.yaml
+  execution_result: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_145609_798076/execution_result.yaml

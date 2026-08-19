@@ -1,0 +1,11 @@
+dataset_name: isaacg1
+scenes: [semantic_navigation]
+cam:
+  H: 480
+  W: 640
+  fx: 243.2
+  fy: 243.2
+  cx: 319.5
+  cy: 239.5
+  depth_scale: 1.0
+  depth_th: 10.0

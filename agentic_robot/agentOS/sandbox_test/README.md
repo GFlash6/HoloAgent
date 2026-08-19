@@ -82,7 +82,7 @@ Each run creates a session directory that typically contains:
 
 - `monitor.yaml`
 - `dag_plan.yaml`
-- `virtual_validation.yaml`
+- `dag_validation.yaml`
 - `execution_result.yaml`
 
 ## Notes

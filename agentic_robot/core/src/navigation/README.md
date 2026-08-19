@@ -8,7 +8,7 @@ The `navigation` directory currently contains three ROS 2 navigation-related nod
 
 These three nodes are commonly used in the following pipelines:
 
-- Semantic navigation pipeline: `/chat_loc_pub` → `semantic_goal_node` → `/object_pose` → `nav_executor_node`
+- Semantic navigation pipeline: `/chat_loc_pub` → HMSG coarse anchor → `/semantic_approach_pose` → online OVO refinement/persistence → `/object_pose` → `nav_executor_node`
 - Relative navigation pipeline: `/relative_nav` → `relative_goal_node` → `/object_pose` → `nav_executor_node`
 
 ---
@@ -28,7 +28,7 @@ navigation/
 
 ### Purpose
 
-`semantic_goal_node` subscribes to semantic query strings on `/chat_loc_pub`, uses `FsrVlnClient` to query the target object location from the scene graph, and publishes the result to `/object_pose` for the navigation executor node.
+`semantic_goal_node` subscribes to semantic query strings on `/chat_loc_pub` and runs two-stage navigation. It first queries HMSG and sends a coarse approach goal to `nav_executor_node` over the internal `/semantic_approach_pose` channel. After arrival it queries the online OVO map, atomically persists the refined map-frame anchor through the HMSG service, and publishes the final standoff pose to `/object_pose`.
 
 ### Code Location
 
@@ -149,6 +149,8 @@ Before starting these three nodes, the following conditions are typically requir
    - The `fsr_vln` Python dependencies are available
    - The configuration file `semantic_goal/config/visualize_query_graph_demo.yaml` can be loaded correctly
    - Semantic map or scene graph data has been prepared
+   - `hmsg_query_server.py` is available on port `8120`
+   - Online OVO mapping uses `ros.query_server_enabled: true` and serves port `8121`
 5. If you use `relative_goal_node`, the following TF transform must exist:
    - `map -> base_link`
 6. If you use `nav_executor_node`, the following are required:

@@ -1,0 +1,22 @@
+main:
+  depth_cut: 4
+  use_gpt: false
+  skip_sam_init: true
+  map_to_hmsg_transform:
+    - [1, 0, 0, 0]
+    - [0, 0, 1, 0]
+    - [0, -1, 0, 0]
+    - [0, 0, 0, 1]
+
+models:
+  clip:
+    type: SigLIP-384
+    checkpoint: ${oc.env:SIGLIP_MODEL_PATH}
+
+pipeline:
+  voxel_size: 0.03
+  skip_frames: 1
+  grid_resolution: 0.05
+  merge_objects_graph: false
+  save_intermediate_results: false
+  obj_labels: FINALLABEL

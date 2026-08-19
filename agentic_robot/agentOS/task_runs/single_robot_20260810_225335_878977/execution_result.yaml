@@ -1,0 +1,10 @@
+recorded_at: '2026-08-10T22:53:51.281748'
+status: failed
+conclusion: 真实执行失败：失败节点=['nav_to_computer']，剩余节点=[]
+completed_nodes: []
+failed_nodes:
+- nav_to_computer
+remaining_nodes: []
+execution_trace:
+- node_id: nav_to_computer
+  success: false

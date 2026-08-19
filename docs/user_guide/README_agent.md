@@ -48,6 +48,25 @@ export MULTI_ROBOT_CONTROL_CENTER_URL=http://127.0.0.1:8080
 
 ## Recommended Entry Points
 
+### Main Agent runtime
+
+The primary runtime is task-oriented: Qwen decomposes a natural-language task into a validated DAG and dispatches registered skills. Voice is an optional input adapter, not the Agent runtime.
+
+```bash
+# Interactive task input
+bash scripts/agent/start_agent.sh
+
+# One task
+bash scripts/agent/start_agent.sh \
+  --task "去一楼实验室的充电桩，然后向前移动0.3米并挥手"
+
+# Plan and validate without robot execution
+bash scripts/agent/start_agent.sh --dry-run \
+  --task "去一楼实验室的充电桩，然后挥手"
+```
+
+Runtime artifacts are written under `agentic_robot/agentOS/task_runs/`.
+
 ### Long-horizon single-robot dry run
 
 ```bash

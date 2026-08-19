@@ -1,0 +1,35 @@
+instruction: 13号机器人先使用语义导航前往 blue plastic crate 附近；到达后后退0.7米并左转180度；完成后使用语义导航前往 yellow
+  plastic crate 附近；到达后再后退0.6米并左转180度；最后使用语义导航前往 packing table 附近。五个步骤必须严格依次执行。
+recorded_at: '2026-08-10T14:59:57.902733'
+dag:
+  description: 13号机器人依次执行语义导航到蓝色塑料箱、相对移动后退0.7米左转180度、语义导航到黄色塑料箱、相对移动后退0.6米左转180度、语义导航到打包台
+  nodes:
+  - id: r13_nav_blue_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,blue plastic crate
+    depends_on: []
+  - id: r13_rel_move_1
+    robot_id: 13
+    skill: rel-move-skill
+    target: -0.7,0,180
+    depends_on:
+    - r13_nav_blue_crate
+  - id: r13_nav_yellow_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,yellow plastic crate
+    depends_on:
+    - r13_rel_move_1
+  - id: r13_rel_move_2
+    robot_id: 13
+    skill: rel-move-skill
+    target: -0.6,0,180
+    depends_on:
+    - r13_nav_yellow_crate
+  - id: r13_nav_packing_table
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,packing table
+    depends_on:
+    - r13_rel_move_2

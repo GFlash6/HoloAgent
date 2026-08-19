@@ -1,0 +1,229 @@
+session_datetime: '20260810_145919_760629'
+session_dir: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_145919_760629
+mode: single_robot
+dry_run: false
+created_at: '2026-08-10T14:59:19.791812'
+status: completed
+validation_conclusion: DAG 静态校验通过：依赖和单机器人串行约束有效
+execution_conclusion: 真实执行完成：所有 DAG 节点已按验证后的顺序执行成功
+events:
+- timestamp: '2026-08-10T14:59:19.793593'
+  event_type: instruction_received
+  payload:
+    instruction: 13号机器人先使用语义导航前往 blue plastic crate 附近；到达后后退0.7米并左转180度；完成后使用语义导航前往
+      yellow plastic crate 附近；到达后再后退0.6米并左转180度；最后使用语义导航前往 packing table 附近。五个步骤必须严格依次执行。
+- timestamp: '2026-08-10T14:59:57.904885'
+  event_type: dag_generated
+  payload:
+    node_count: 5
+    description: 13号机器人依次执行语义导航到蓝色塑料箱、相对移动后退0.7米左转180度、语义导航到黄色塑料箱、相对移动后退0.6米左转180度、语义导航到打包台
+- timestamp: '2026-08-10T14:59:57.909649'
+  event_type: dag_validation_completed
+  payload:
+    status: passed
+    conclusion: DAG 静态校验通过：依赖和单机器人串行约束有效
+- timestamp: '2026-08-10T14:59:57.913072'
+  event_type: node_execution_started
+  payload:
+    node_id: r13_nav_blue_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,blue plastic crate
+    started_at: '2026-08-10T14:59:57.911561'
+- timestamp: '2026-08-10T14:59:57.921072'
+  event_type: navigation_wait_started
+  payload:
+    robot_id: 13
+    target: nav_finish
+    started_at: '2026-08-10T14:59:57.921060'
+- timestamp: '2026-08-10T15:00:31.615332'
+  event_type: navigation_wait_completed
+  payload:
+    robot_id: 13
+    target: nav_finish
+    finished_at: '2026-08-10T15:00:31.615315'
+    completion_source: nav_finish
+- timestamp: '2026-08-10T15:00:31.621501'
+  event_type: node_execution_finished
+  payload:
+    node_id: r13_nav_blue_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,blue plastic crate
+    success: true
+    finished_at: '2026-08-10T15:00:31.618316'
+    duration_sec: 33.707
+- timestamp: '2026-08-10T15:00:31.627681'
+  event_type: node_execution_started
+  payload:
+    node_id: r13_rel_move_1
+    robot_id: 13
+    skill: rel-move-skill
+    target: -0.7,0,180
+    started_at: '2026-08-10T15:00:31.624861'
+- timestamp: '2026-08-10T15:00:31.635336'
+  event_type: navigation_wait_started
+  payload:
+    robot_id: 13
+    target: nav_finish
+    started_at: '2026-08-10T15:00:31.635324'
+- timestamp: '2026-08-10T15:01:32.461366'
+  event_type: navigation_wait_completed
+  payload:
+    robot_id: 13
+    target: nav_finish
+    finished_at: '2026-08-10T15:01:32.461322'
+    completion_source: nav_finish
+- timestamp: '2026-08-10T15:01:32.468149'
+  event_type: node_execution_finished
+  payload:
+    node_id: r13_rel_move_1
+    robot_id: 13
+    skill: rel-move-skill
+    target: -0.7,0,180
+    success: true
+    finished_at: '2026-08-10T15:01:32.464924'
+    duration_sec: 60.84
+- timestamp: '2026-08-10T15:01:32.475512'
+  event_type: node_execution_started
+  payload:
+    node_id: r13_nav_yellow_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,yellow plastic crate
+    started_at: '2026-08-10T15:01:32.471886'
+- timestamp: '2026-08-10T15:01:32.483980'
+  event_type: navigation_wait_started
+  payload:
+    robot_id: 13
+    target: nav_finish
+    started_at: '2026-08-10T15:01:32.483969'
+- timestamp: '2026-08-10T15:02:16.229957'
+  event_type: navigation_wait_completed
+  payload:
+    robot_id: 13
+    target: nav_finish
+    finished_at: '2026-08-10T15:02:16.229939'
+    completion_source: nav_finish
+- timestamp: '2026-08-10T15:02:16.239096'
+  event_type: node_execution_finished
+  payload:
+    node_id: r13_nav_yellow_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,yellow plastic crate
+    success: true
+    finished_at: '2026-08-10T15:02:16.234724'
+    duration_sec: 43.763
+- timestamp: '2026-08-10T15:02:16.249714'
+  event_type: node_execution_started
+  payload:
+    node_id: r13_rel_move_2
+    robot_id: 13
+    skill: rel-move-skill
+    target: -0.6,0,180
+    started_at: '2026-08-10T15:02:16.244077'
+- timestamp: '2026-08-10T15:02:16.259066'
+  event_type: navigation_wait_started
+  payload:
+    robot_id: 13
+    target: nav_finish
+    started_at: '2026-08-10T15:02:16.259056'
+- timestamp: '2026-08-10T15:03:18.613722'
+  event_type: navigation_wait_completed
+  payload:
+    robot_id: 13
+    target: nav_finish
+    finished_at: '2026-08-10T15:03:18.613661'
+    completion_source: nav_finish
+- timestamp: '2026-08-10T15:03:18.625896'
+  event_type: node_execution_finished
+  payload:
+    node_id: r13_rel_move_2
+    robot_id: 13
+    skill: rel-move-skill
+    target: -0.6,0,180
+    success: true
+    finished_at: '2026-08-10T15:03:18.619767'
+    duration_sec: 62.376
+- timestamp: '2026-08-10T15:03:18.637708'
+  event_type: node_execution_started
+  payload:
+    node_id: r13_nav_packing_table
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,packing table
+    started_at: '2026-08-10T15:03:18.631817'
+- timestamp: '2026-08-10T15:03:18.648709'
+  event_type: navigation_wait_started
+  payload:
+    robot_id: 13
+    target: nav_finish
+    started_at: '2026-08-10T15:03:18.648698'
+- timestamp: '2026-08-10T15:04:15.461732'
+  event_type: navigation_wait_completed
+  payload:
+    robot_id: 13
+    target: nav_finish
+    finished_at: '2026-08-10T15:04:15.461719'
+    completion_source: nav_finish
+- timestamp: '2026-08-10T15:04:15.475180'
+  event_type: node_execution_finished
+  payload:
+    node_id: r13_nav_packing_table
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,packing table
+    success: true
+    finished_at: '2026-08-10T15:04:15.468596'
+    duration_sec: 56.837
+- timestamp: '2026-08-10T15:04:15.494269'
+  event_type: physical_execution_completed
+  payload:
+    status: passed
+    conclusion: 真实执行完成：所有 DAG 节点已按验证后的顺序执行成功
+subtasks:
+- node_id: r13_nav_blue_crate
+  robot_id: 13
+  skill: sem-nav-skill
+  target: current,current,blue plastic crate
+  status: passed
+  started_at: '2026-08-10T14:59:57.911561'
+  finished_at: '2026-08-10T15:00:31.618316'
+  duration_sec: 33.707
+- node_id: r13_rel_move_1
+  robot_id: 13
+  skill: rel-move-skill
+  target: -0.7,0,180
+  status: passed
+  started_at: '2026-08-10T15:00:31.624861'
+  finished_at: '2026-08-10T15:01:32.464924'
+  duration_sec: 60.84
+- node_id: r13_nav_yellow_crate
+  robot_id: 13
+  skill: sem-nav-skill
+  target: current,current,yellow plastic crate
+  status: passed
+  started_at: '2026-08-10T15:01:32.471886'
+  finished_at: '2026-08-10T15:02:16.234724'
+  duration_sec: 43.763
+- node_id: r13_rel_move_2
+  robot_id: 13
+  skill: rel-move-skill
+  target: -0.6,0,180
+  status: passed
+  started_at: '2026-08-10T15:02:16.244077'
+  finished_at: '2026-08-10T15:03:18.619767'
+  duration_sec: 62.376
+- node_id: r13_nav_packing_table
+  robot_id: 13
+  skill: sem-nav-skill
+  target: current,current,packing table
+  status: passed
+  started_at: '2026-08-10T15:03:18.631817'
+  finished_at: '2026-08-10T15:04:15.468596'
+  duration_sec: 56.837
+artifacts:
+  dag_plan: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_145919_760629/dag_plan.yaml
+  dag_validation: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_145919_760629/dag_validation.yaml
+  execution_result: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_145919_760629/execution_result.yaml

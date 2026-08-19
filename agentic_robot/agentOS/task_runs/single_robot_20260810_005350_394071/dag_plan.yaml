@@ -1,0 +1,10 @@
+instruction: 让13号机器人导航到一楼仓库里的 yellow crate
+recorded_at: '2026-08-10T00:53:54.770814'
+dag:
+  description: 13号机器人导航到一楼仓库的yellow crate
+  nodes:
+  - id: r13_nav_warehouse_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: 一楼,仓库,yellow crate
+    depends_on: []

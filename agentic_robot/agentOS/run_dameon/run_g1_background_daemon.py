@@ -12,11 +12,12 @@ GROUPS = {
     "sensors": UNITREE_SCRIPT_DIR / "run_sensors.sh",
     "localization": UNITREE_SCRIPT_DIR / "run_localization.sh",
     "nav": UNITREE_SCRIPT_DIR / "run_nav.sh",
+    "agent": UNITREE_SCRIPT_DIR / "run_agent.sh",
     "audio": UNITREE_SCRIPT_DIR / "run_audio.sh",
     "ctl": UNITREE_SCRIPT_DIR / "run_ctl.sh",
 }
 
-DEFAULT_GROUPS = ["sensors", "localization", "nav", "audio", "ctl"]
+DEFAULT_GROUPS = ["sensors", "localization", "nav", "ctl", "agent"]
 
 
 def start_group(group_name: str) -> None:

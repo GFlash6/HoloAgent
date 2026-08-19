@@ -1,0 +1,10 @@
+recorded_at: '2026-08-10T00:57:26.100710'
+status: failed
+conclusion: 真实执行失败：失败节点=['r13_sem_nav_crate']，剩余节点=[]
+completed_nodes: []
+failed_nodes:
+- r13_sem_nav_crate
+remaining_nodes: []
+execution_trace:
+- node_id: r13_sem_nav_crate
+  success: false

@@ -1,0 +1,22 @@
+instruction: 去一楼实验室的充电桩，然后向前移动0.3米并挥手
+recorded_at: '2026-08-09T23:16:16.261738'
+dag:
+  description: 13 机器语义导航到一楼实验室充电桩，向前微调 0.3 米后挥手
+  nodes:
+  - id: r13_nav_to_charger
+    robot_id: 13
+    skill: sem-nav-skill
+    target: 一楼,实验室,充电桩
+    depends_on: []
+  - id: r13_rel_move_forward
+    robot_id: 13
+    skill: rel-move-skill
+    target: 0.3,0,0
+    depends_on:
+    - r13_nav_to_charger
+  - id: r13_wave
+    robot_id: 13
+    skill: arm-skill
+    target: wave_above_head
+    depends_on:
+    - r13_rel_move_forward

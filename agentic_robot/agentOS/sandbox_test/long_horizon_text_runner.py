@@ -4,7 +4,7 @@
 
 目标：
 - 使用 LLM 将长指令拆解为单机/多机 DAG
-- 在真实物理执行前，先进行虚拟执行验证流程顺序
+- 在真实物理执行前，只做 DAG 依赖与串行约束的静态校验
 - 将规划、验证、执行监控结果写入监控文件
 """
 
@@ -24,9 +24,9 @@ import yaml
 from openai import DefaultHttpxClient, OpenAI
 
 
-DEFAULT_OUTPUT_ROOT = Path(
-    "/workspace/D-Robotics/agentic_robot_system/agentic_robot/agentOS/long_horizon_instruction_test/output"
-)
+DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[1] / "task_runs"
+SKILLS_ROOT = Path(__file__).resolve().parents[1] / "holoagent_skills" / "skills"
+EXECUTABLE_SKILLS = ("sem-nav-skill", "rel-move-skill", "arm-skill")
 
 SINGLE_ROBOT_TEST_CASES = [
     {
@@ -37,15 +37,15 @@ SINGLE_ROBOT_TEST_CASES = [
             "nodes": [
                 {"id": "r11_nav_p1", "robot_id": 11, "skill": "navigation",
                     "target": "one_point_1", "depends_on": []},
-                {"id": "r11_wave_greet", "robot_id": 11, "skill": "arm",
+                {"id": "r11_wave_greet", "robot_id": 11, "skill": "arm-skill",
                     "target": "wave_above_head", "depends_on": ["r11_nav_p1"]},
                 {"id": "r11_nav_p2", "robot_id": 11, "skill": "navigation",
                     "target": "one_point_2", "depends_on": ["r11_wave_greet"]},
-                {"id": "r11_high_five", "robot_id": 11, "skill": "arm",
+                {"id": "r11_high_five", "robot_id": 11, "skill": "arm-skill",
                     "target": "high_five", "depends_on": ["r11_nav_p2"]},
                 {"id": "r11_nav_p3", "robot_id": 11, "skill": "navigation",
                     "target": "one_point_3", "depends_on": ["r11_high_five"]},
-                {"id": "r11_wave_bye", "robot_id": 11, "skill": "arm",
+                {"id": "r11_wave_bye", "robot_id": 11, "skill": "arm-skill",
                     "target": "wave_under_head", "depends_on": ["r11_nav_p3"]},
             ],
         },
@@ -63,13 +63,13 @@ MULTI_ROBOT_TEST_CASES = [
                     "target": "one_point_1", "depends_on": []},
                 {"id": "r12_nav_p1", "robot_id": 12, "skill": "navigation",
                     "target": "one_point_1", "depends_on": []},
-                {"id": "r11_wave_greet", "robot_id": 11, "skill": "arm",
+                {"id": "r11_wave_greet", "robot_id": 11, "skill": "arm-skill",
                     "target": "wave_above_head", "depends_on": ["r11_nav_p1"]},
-                {"id": "r12_high_five", "robot_id": 12, "skill": "arm",
+                {"id": "r12_high_five", "robot_id": 12, "skill": "arm-skill",
                     "target": "high_five", "depends_on": ["r12_nav_p1"]},
-                {"id": "r11_wave_bye", "robot_id": 11, "skill": "arm",
+                {"id": "r11_wave_bye", "robot_id": 11, "skill": "arm-skill",
                     "target": "wave_under_head", "depends_on": ["r11_wave_greet", "r12_high_five"]},
-                {"id": "r12_wave_bye", "robot_id": 12, "skill": "arm",
+                {"id": "r12_wave_bye", "robot_id": 12, "skill": "arm-skill",
                     "target": "wave_under_head", "depends_on": ["r11_wave_greet", "r12_high_five"]},
                 {"id": "r11_nav_p2", "robot_id": 11, "skill": "navigation",
                     "target": "one_point_2", "depends_on": ["r11_wave_bye", "r12_wave_bye"]},
@@ -85,7 +85,6 @@ class LongHorizonTextRunner:
     _HTTP_TIMEOUT_SEC = 10.0
     _CONTROL_CENTER_TIMEOUT_SEC = 5.0
     _NAV_WAIT_TIMEOUT_SEC = 120.0
-    _ARM_SKILL_WAIT_SEC = 8.0
     _DAG_EXECUTOR_MAX_WORKERS = 8
 
     def __init__(self, mode: str, dry_run: bool = False, output_root: Optional[Path] = None) -> None:
@@ -94,14 +93,14 @@ class LongHorizonTextRunner:
         self.output_root = output_root or DEFAULT_OUTPUT_ROOT
         self.output_root.mkdir(parents=True, exist_ok=True)
 
-        self.session_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.session_datetime = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         self.session_dir = self.output_root / \
             f"{self.mode}_{self.session_datetime}"
         self.session_dir.mkdir(parents=True, exist_ok=True)
 
         self.monitor_path = self.session_dir / "monitor.yaml"
         self.plan_path = self.session_dir / "dag_plan.yaml"
-        self.virtual_validation_path = self.session_dir / "virtual_validation.yaml"
+        self.dag_validation_path = self.session_dir / "dag_validation.yaml"
         self.execution_path = self.session_dir / "execution_result.yaml"
 
         self.robot_urls = {
@@ -115,6 +114,13 @@ class LongHorizonTextRunner:
         self.control_center_url = os.getenv(
             "MULTI_ROBOT_CONTROL_CENTER_URL", "http://127.0.0.1:8080"
         ).rstrip("/")
+        self.default_robot_id = int(os.getenv("DEFAULT_ROBOT_ID", "13"))
+        if self.default_robot_id not in self.robot_urls:
+            raise ValueError("DEFAULT_ROBOT_ID must be one of 11/12/13/14/15/16")
+        self.skill_catalog = "\n\n".join(
+            (SKILLS_ROOT / name / "SKILL.md").read_text(encoding="utf-8")
+            for name in EXECUTABLE_SKILLS
+        )
 
         self.supported_navigation_targets = {
             "one_point_1",
@@ -164,7 +170,7 @@ class LongHorizonTextRunner:
             "subtasks": [],
             "artifacts": {
                 "dag_plan": str(self.plan_path),
-                "virtual_validation": str(self.virtual_validation_path),
+                "dag_validation": str(self.dag_validation_path),
                 "execution_result": str(self.execution_path),
             },
         }
@@ -175,6 +181,7 @@ class LongHorizonTextRunner:
         if not qwen_api_key:
             raise RuntimeError("未配置 QWEN_API_KEY")
         qwen_model = os.getenv("QWEN_MODEL", "qwen3.7-plus")
+        qwen_proxy = os.getenv("QWEN_PROXY")
         client = OpenAI(
             api_key=qwen_api_key,
             base_url=os.getenv(
@@ -182,7 +189,7 @@ class LongHorizonTextRunner:
                 "https://dashscope.aliyuncs.com/compatible-mode/v1",
             ),
             http_client=DefaultHttpxClient(
-                proxy=os.getenv("HTTPS_PROXY") or os.getenv("https_proxy"),
+                proxy=qwen_proxy,
                 trust_env=False,
             ),
         )
@@ -224,7 +231,7 @@ class LongHorizonTextRunner:
             else "当前任务模式是 multi_robot，允许规划多个 robot_id 的并发协作 DAG。"
         )
         return f"""
-你是一个机器人长指令任务规划器。你的职责是把用户自然语言长指令转换为一个可执行 DAG(JSON)。
+你是 HoloAgent 主任务规划器。你的职责是把用户自然语言任务拆解为调用已注册 skill 的可执行 DAG(JSON)。
 你只能输出合法 JSON，不要输出 markdown，不要输出解释，不要输出代码块。
 
 输出 JSON 格式固定为：
@@ -234,8 +241,8 @@ class LongHorizonTextRunner:
     {{
       "id": "r11_nav_p1",
       "robot_id": 11,
-      "skill": "navigation",
-      "target": "one_point_1",
+      "skill": "sem-nav-skill",
+      "target": "一楼,实验室,充电桩",
       "depends_on": []
     }}
   ]
@@ -244,16 +251,33 @@ class LongHorizonTextRunner:
 字段约束：
 - id: 字符串，必须唯一
 - robot_id: 整数，必须是 11/12/13/14/15/16 之一
-- skill: 只能是 "navigation" 或 "arm"
+- skill 只能是以下已注册能力：
+  - "sem-nav-skill": target 必须是 "floor,room,object"；用户只给出明确物体时使用 "current,current,object"
+  - "rel-move-skill": target 必须是 "forward,left,degrees"
+  - "arm-skill": target 必须是预定义动作名
+  - "navigation": 兼容已有命名点导航，target 只能是 {sorted(self.supported_navigation_targets)}
 - target:
-  - skill="navigation" 时只能是 {sorted(self.supported_navigation_targets)}
-  - skill="arm" 时只能是 {sorted(self.supported_arm_targets)}
+  - skill="arm-skill" 时只能是 {sorted(self.supported_arm_targets)}
 - depends_on: 字符串数组，没有依赖时必须输出 []
+- 用户没有指定 robot_id 时使用 {self.default_robot_id}
 - “同时”表示并行，不要互相依赖
 - “然后”“之后”“完成后”“到达后”表示建立依赖
 - 不要凭空增加用户未提及的动作
 - 如果无法可靠映射，输出 {{"description": "unrecognized", "nodes": []}}
 - {mode_rule}
+
+注册 skill 组合样例：
+{{
+  "description": "去实验室充电桩附近，向前微调后挥手",
+  "nodes": [
+    {{"id":"semantic_nav","robot_id":{self.default_robot_id},"skill":"sem-nav-skill","target":"一楼,实验室,充电桩","depends_on":[]}},
+    {{"id":"fine_tune","robot_id":{self.default_robot_id},"skill":"rel-move-skill","target":"0.3,0,0","depends_on":["semantic_nav"]}},
+    {{"id":"wave","robot_id":{self.default_robot_id},"skill":"arm-skill","target":"wave_above_head","depends_on":["fine_tune"]}}
+  ]
+}}
+
+以下 SKILL.md 是可执行能力的权威契约：
+{self.skill_catalog}
 
 单机长指令样例：
 {json.dumps(SINGLE_ROBOT_TEST_CASES, ensure_ascii=False, indent=2)}
@@ -290,7 +314,7 @@ class LongHorizonTextRunner:
                                    "reason": "empty_response"})
                 return None
 
-            dag = json.loads(content)
+            dag = self._extract_json_object(content)
             normalized = self._validate_and_normalize_dag(dag)
             self._write_yaml(
                 self.plan_path,
@@ -311,6 +335,21 @@ class LongHorizonTextRunner:
         except Exception as exc:
             self._append_event("dag_generation_failed", {"reason": str(exc)})
             return None
+
+    @staticmethod
+    def _extract_json_object(content: str) -> dict:
+        """Decode the first complete JSON object from a model response."""
+        decoder = json.JSONDecoder()
+        for index, char in enumerate(content):
+            if char != "{":
+                continue
+            try:
+                value, _ = decoder.raw_decode(content[index:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, dict):
+                return value
+        raise ValueError("Qwen response did not contain a JSON object")
 
     def _validate_and_normalize_dag(self, dag: dict) -> Optional[dict]:
         if not isinstance(dag, dict):
@@ -344,11 +383,17 @@ class LongHorizonTextRunner:
 
             if robot_id not in self.robot_urls:
                 return None
-            if skill not in {"navigation", "arm"}:
+            if skill not in {
+                "navigation", "arm", "arm-skill", "rel-move-skill", "sem-nav-skill"
+            }:
                 return None
             if skill == "navigation" and target not in self.supported_navigation_targets:
                 return None
-            if skill == "arm" and target not in self.supported_arm_targets:
+            if skill in {"arm", "arm-skill"} and target not in self.supported_arm_targets:
+                return None
+            if skill == "rel-move-skill" and not self._valid_relative_target(target):
+                return None
+            if skill == "sem-nav-skill" and not self._valid_semantic_target(target):
                 return None
             if not isinstance(depends_on, list):
                 return None
@@ -377,6 +422,21 @@ class LongHorizonTextRunner:
             return None
 
         return {"description": description or f"{self.mode}_dag", "nodes": normalized_nodes}
+
+    @staticmethod
+    def _valid_relative_target(target: str) -> bool:
+        parts = [part.strip() for part in target.split(",")]
+        if len(parts) != 3:
+            return False
+        try:
+            [float(part) for part in parts]
+        except ValueError:
+            return False
+        return True
+
+    @staticmethod
+    def _valid_semantic_target(target: str) -> bool:
+        return len([part for part in target.split(",") if part.strip()]) == 3
 
     def _has_cycle(self, nodes: List[dict]) -> bool:
         graph = {node["id"]: list(node["depends_on"]) for node in nodes}
@@ -419,22 +479,22 @@ class LongHorizonTextRunner:
 
         return closure_cache
 
-    def virtual_validate(self, dag: Optional[dict]) -> bool:
+    def validate_dag_static(self, dag: Optional[dict]) -> bool:
         result = {
             "recorded_at": datetime.now().isoformat(),
             "status": "passed",
-            "conclusion": "虚拟执行验证通过：流程顺序正确，可进入真实执行阶段",
+            "conclusion": "DAG 静态校验通过：依赖和单机器人串行约束有效",
             "checks": [],
-            "virtual_execution_trace": [],
+            "dag_execution_order": [],
         }
 
         if not dag or not dag.get("nodes"):
             result["status"] = "failed"
-            result["conclusion"] = "虚拟执行验证失败：DAG 为空或无法识别，禁止真实执行"
+            result["conclusion"] = "DAG 静态校验失败：DAG 为空或无法识别，禁止真实执行"
             result["checks"].append(
                 {"name": "dag_non_empty", "passed": False, "reason": "DAG 为空或无法识别"}
             )
-            self._write_yaml(self.virtual_validation_path, result)
+            self._write_yaml(self.dag_validation_path, result)
             self._update_monitor(status="validation_failed",
                                  validation_conclusion=result["conclusion"])
             return False
@@ -488,7 +548,7 @@ class LongHorizonTextRunner:
             ]
             if not ready_nodes:
                 result["status"] = "failed"
-                result["conclusion"] = "虚拟执行验证失败：存在无法推进的依赖阻塞，禁止真实执行"
+                result["conclusion"] = "DAG 静态校验失败：存在无法推进的依赖阻塞，禁止真实执行"
                 result["checks"].append(
                     {
                         "name": "topology_progress",
@@ -499,7 +559,7 @@ class LongHorizonTextRunner:
                 break
 
             step_index += 1
-            result["virtual_execution_trace"].append(
+            result["dag_execution_order"].append(
                 {
                     "step": step_index,
                     "parallel_nodes": [
@@ -517,16 +577,16 @@ class LongHorizonTextRunner:
                 pending.remove(node["id"])
                 completed.add(node["id"])
 
-        if result["status"] != "passed" and result["conclusion"].startswith("虚拟执行验证通过"):
-            result["conclusion"] = "虚拟执行验证失败：存在依赖或串行约束问题，禁止真实执行"
+        if result["status"] != "passed" and result["conclusion"].startswith("DAG 静态校验通过"):
+            result["conclusion"] = "DAG 静态校验失败：存在依赖或串行约束问题，禁止真实执行"
 
-        self._write_yaml(self.virtual_validation_path, result)
+        self._write_yaml(self.dag_validation_path, result)
         self._update_monitor(
             status="validated" if result["status"] == "passed" else "validation_failed",
             validation_conclusion=result["conclusion"],
         )
         self._append_event(
-            "virtual_validation_completed",
+            "dag_validation_completed",
             {"status": result["status"], "conclusion": result["conclusion"]},
         )
         return result["status"] == "passed"
@@ -536,7 +596,7 @@ class LongHorizonTextRunner:
             result = {
                 "recorded_at": datetime.now().isoformat(),
                 "status": "skipped",
-                "conclusion": "当前为 dry-run，仅完成虚拟执行验证，未触发真实物理执行",
+                "conclusion": "当前为 dry-run，仅完成 DAG 静态校验，未触发真实物理执行",
                 "executed_nodes": [],
             }
             self._write_yaml(self.execution_path, result)
@@ -649,8 +709,12 @@ class LongHorizonTextRunner:
 
         if skill == "navigation":
             ok = self._call_robot_navigation(robot_id, target)
-        elif skill == "arm":
+        elif skill in {"arm", "arm-skill"}:
             ok = self._call_robot_arm(robot_id, target)
+        elif skill == "rel-move-skill":
+            ok = self._call_navigation_skill(robot_id, "relative_nav", target)
+        elif skill == "sem-nav-skill":
+            ok = self._call_navigation_skill(robot_id, "semantic_nav", target)
         else:
             ok = False
 
@@ -711,26 +775,25 @@ class LongHorizonTextRunner:
             "arm_trigger_requested",
             {"robot_id": robot_id, "target": target},
         )
+        self._reset_control_center_reached_state([robot_id])
         url = f"{self.robot_urls[robot_id]}/api/arm/{target}"
-        ok = self._post_json(url)
-        if ok:
-            self._append_event(
-                "arm_trigger_accepted",
-                {"robot_id": robot_id, "target": target,
-                    "wait_sec": self._ARM_SKILL_WAIT_SEC},
-            )
-            time.sleep(self._ARM_SKILL_WAIT_SEC)
-            self._append_event(
-                "arm_wait_completed",
-                {"robot_id": robot_id, "target": target,
-                    "wait_sec": self._ARM_SKILL_WAIT_SEC},
-            )
-        else:
+        if not self._post_json(url):
             self._append_event(
                 "arm_trigger_failed",
                 {"robot_id": robot_id, "target": target},
             )
-        return ok
+            return False
+        self._append_event(
+            "arm_trigger_accepted", {"robot_id": robot_id, "target": target}
+        )
+        return self._wait_for_robot_completion(robot_id, f"arm_finish:{target}")
+
+    def _call_navigation_skill(self, robot_id: int, endpoint: str, target: str) -> bool:
+        self._reset_control_center_reached_state([robot_id])
+        url = f"{self.robot_urls[robot_id]}/api/{endpoint}"
+        if not self._post_json(url, {"cmd": target}):
+            return False
+        return self._wait_for_robot_completion(robot_id, "nav_finish")
 
     def _post_json(self, url: str, payload: Optional[dict] = None) -> bool:
         try:
@@ -750,7 +813,7 @@ class LongHorizonTextRunner:
         except Exception:
             pass
 
-    def _wait_for_robot_navigation_completion(self, robot_id: int, target: str) -> bool:
+    def _wait_for_robot_completion(self, robot_id: int, target: str) -> bool:
         wait_started_at = datetime.now().isoformat()
         self._append_event(
             "navigation_wait_started",
@@ -764,7 +827,15 @@ class LongHorizonTextRunner:
                     params={"target": target},
                     timeout=self._CONTROL_CENTER_TIMEOUT_SEC,
                 )
-                if response.ok and response.json().get("reached"):
+                status = response.json() if response.ok else {}
+                reported_target = status.get("target")
+                if self._is_terminal_failure(reported_target):
+                    self._append_event(
+                        "navigation_wait_failed",
+                        {"robot_id": robot_id, "target": reported_target},
+                    )
+                    return False
+                if response.ok and status.get("reached"):
                     self._append_event(
                         "navigation_wait_completed",
                         {
@@ -788,7 +859,44 @@ class LongHorizonTextRunner:
                 "timeout_sec": self._NAV_WAIT_TIMEOUT_SEC,
             },
         )
+        if target == "nav_finish":
+            self._cancel_navigation_and_confirm(robot_id)
         return False
+
+    @staticmethod
+    def _is_terminal_failure(reported_target: object) -> bool:
+        value = str(reported_target or "")
+        return value in {"nav_failed", "nav_canceled"} or value.startswith(
+            "arm_failed:")
+
+    def _cancel_navigation_and_confirm(self, robot_id: int) -> bool:
+        cancel_url = f"{self.robot_urls[robot_id]}/api/navigation/stop"
+        if not self._post_json(cancel_url):
+            self._append_event(
+                "navigation_cancel_failed", {"robot_id": robot_id, "reason": "request_failed"}
+            )
+            return False
+        deadline = time.time() + 10.0
+        while time.time() < deadline:
+            try:
+                response = requests.get(
+                    f"{self.control_center_url}/robot_reached/{robot_id}",
+                    timeout=self._CONTROL_CENTER_TIMEOUT_SEC,
+                )
+                if response.ok and response.json().get("target") == "nav_canceled":
+                    self._append_event(
+                        "navigation_cancel_confirmed", {"robot_id": robot_id}
+                    )
+                    return True
+            except Exception:
+                pass
+            time.sleep(0.5)
+        self._append_event(
+            "navigation_cancel_failed", {"robot_id": robot_id, "reason": "confirmation_timeout"}
+        )
+        return False
+
+    _wait_for_robot_navigation_completion = _wait_for_robot_completion
 
     def run(self, instruction: str) -> int:
         self._update_monitor(status="planning")
@@ -796,15 +904,15 @@ class LongHorizonTextRunner:
         if not dag:
             self._update_monitor(
                 status="planning_failed",
-                validation_conclusion="DAG 规划失败，无法进入虚拟执行验证",
+                validation_conclusion="DAG 规划失败，无法进入 DAG 静态校验",
                 execution_conclusion="未执行",
             )
             return 1
 
-        validation_ok = self.virtual_validate(dag)
+        validation_ok = self.validate_dag_static(dag)
         if not validation_ok:
             self._update_monitor(
-                execution_conclusion="虚拟执行验证未通过，真实执行被阻止",
+                execution_conclusion="DAG 静态校验未通过，真实执行被阻止",
             )
             return 2
 
@@ -817,7 +925,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--instruction", required=True, help="纯文本长指令")
     parser.add_argument(
         "--mode", choices=["single_robot", "multi_robot"], required=True)
-    parser.add_argument("--dry-run", action="store_true", help="仅做规划和虚拟执行验证")
+    parser.add_argument("--dry-run", action="store_true", help="仅做规划和 DAG 静态校验")
     parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT))
     return parser
 

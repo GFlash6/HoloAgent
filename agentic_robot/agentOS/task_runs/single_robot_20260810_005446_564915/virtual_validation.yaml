@@ -1,0 +1,29 @@
+recorded_at: '2026-08-10T00:54:52.945240'
+status: passed
+conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+checks:
+- name: deps_exist::r13_move_backward
+  passed: true
+  missing_dependencies: []
+- name: deps_exist::r13_nav_yellow_crate
+  passed: true
+  missing_dependencies: []
+- name: single_robot_serialization::r13_move_backward
+  passed: true
+  conflicting_nodes: []
+- name: single_robot_serialization::r13_nav_yellow_crate
+  passed: true
+  conflicting_nodes: []
+virtual_execution_trace:
+- step: 1
+  parallel_nodes:
+  - id: r13_move_backward
+    robot_id: 13
+    skill: rel-move-skill
+    target: -0.8,0,0
+- step: 2
+  parallel_nodes:
+  - id: r13_nav_yellow_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: 一楼,仓库,yellow crate

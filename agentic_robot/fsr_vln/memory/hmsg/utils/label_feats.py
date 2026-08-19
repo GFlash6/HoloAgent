@@ -40,7 +40,8 @@ def get_label_feats(
         clip_feat_dim,
         obj_labels,
         label_feat_path=None):
-    label_feat_path = os.path.dirname(os.path.abspath(__file__))
+    label_feat_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "labels")
     if obj_labels == "COCO_STUFF_CLASSES":
         classes = list(COCO_STUFF_CLASSES.values())
         text_feats, classes = compute_label_feats(
@@ -64,8 +65,6 @@ def get_label_feats(
         text_feats, classes = compute_label_feats(
             clip_model, clip_feat_dim, label_feat_path, classes, "text_feats_OPENVOCAB_MATTERPORT_LABELS.npy")
     elif obj_labels == "HM3DSEM_LABELS":
-        # TODO: change this
-        label_feat_path = "memory/hmsg/labels"
         classes_matrix = pd.read_csv(
             os.path.join(
                 label_feat_path,
@@ -76,8 +75,6 @@ def get_label_feats(
         text_feats, classes = compute_label_feats(
             clip_model, clip_feat_dim, label_feat_path, classes, "text_feats_HM3DSEM_LABELS.npy")
     elif obj_labels == "IMAGENET21K_LABELS":
-        # TODO: change this
-        label_feat_path = "memory/hmsg/labels"
         classes_matrix = pd.read_csv(
             os.path.join(
                 label_feat_path,
@@ -88,8 +85,6 @@ def get_label_feats(
         text_feats, classes = compute_label_feats(
             clip_model, clip_feat_dim, label_feat_path, classes, "text_feats_IMAGENET21K_LABELS.npy")
     elif obj_labels == "SCANNET200":
-        # TODO: change this
-        label_feat_path = "memory/hmsg/labels"
         classes_matrix = pd.read_csv(
             os.path.join(
                 label_feat_path,
@@ -100,8 +95,6 @@ def get_label_feats(
         text_feats, classes = compute_label_feats(
             clip_model, clip_feat_dim, label_feat_path, classes, "text_feats_SCANNET200_LABELS.npy")
     elif obj_labels == "SCANNET20":
-        # TODO: change this
-        label_feat_path = "memory/hmsg/labels"
         classes_matrix = pd.read_csv(
             os.path.join(
                 label_feat_path,
@@ -112,8 +105,6 @@ def get_label_feats(
         text_feats, classes = compute_label_feats(
             clip_model, clip_feat_dim, label_feat_path, classes, "text_feats_SCANNET20_LABELS.npy")
     elif obj_labels == "FINALLABEL":
-        # TODO: change this
-        label_feat_path = "memory/hmsg/labels"
         classes_matrix = pd.read_csv(
             os.path.join(
                 label_feat_path,

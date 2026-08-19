@@ -1,0 +1,10 @@
+instruction: 13号机器人向前移动0.6米并左转30度
+recorded_at: '2026-08-11T20:21:10.790669'
+dag:
+  description: 13号机器人向前移动0.6米并左转30度
+  nodes:
+  - id: r13_rel_move
+    robot_id: 13
+    skill: rel-move-skill
+    target: 0.6,0,30
+    depends_on: []

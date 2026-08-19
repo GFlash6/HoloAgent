@@ -6,7 +6,6 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from tf2_ros import TransformListener, Buffer
-from transforms3d import euler, quaternions
 import math
 
 
@@ -100,33 +99,15 @@ class RelativeNavNode(Node):
             # transforms3d quaternions模块使用 (w, x, y, z) 格式
             q = orientation  # (x, y, z, w) from ROS
 
-            # 构建局部偏移向量 (forward, left, 0)
-            local_offset = [forward, left, 0.0]
-
-            # 四元数转旋转矩阵
-            # quat2mat takes (w, x, y, z)
-            rotation_matrix = quaternions.quat2mat((q[3], q[0], q[1], q[2]))
-
-            # 旋转局部偏移
+            current_yaw = math.atan2(
+                2.0 * (q[3] * q[2] + q[0] * q[1]),
+                1.0 - 2.0 * (q[1] * q[1] + q[2] * q[2]),
+            )
             global_offset = [
-                rotation_matrix[0][0] *
-                local_offset[0] +
-                rotation_matrix[0][1] *
-                local_offset[1] +
-                rotation_matrix[0][2] *
-                local_offset[2],
-                rotation_matrix[1][0] *
-                local_offset[0] +
-                rotation_matrix[1][1] *
-                local_offset[1] +
-                rotation_matrix[1][2] *
-                local_offset[2],
-                rotation_matrix[2][0] *
-                local_offset[0] +
-                rotation_matrix[2][1] *
-                local_offset[1] +
-                rotation_matrix[2][2] *
-                local_offset[2]]
+                math.cos(current_yaw) * forward - math.sin(current_yaw) * left,
+                math.sin(current_yaw) * forward + math.cos(current_yaw) * left,
+                0.0,
+            ]
 
             # 计算目标位置
             goal_x = position[0] + global_offset[0]
@@ -134,17 +115,8 @@ class RelativeNavNode(Node):
             goal_z = position[2] + global_offset[2]
 
             # 2. 计算目标偏航角
-            # 四元数转欧拉角 (roll, pitch, yaw)
-            current_euler = euler.quat2euler((q[3], q[0], q[1], q[2]))
-            # current_euler: (roll, pitch, yaw) in radians
-            current_yaw = current_euler[2]
-
             # 目标偏航角 = 当前偏航角 + 旋转角度(度转弧度)
             goal_yaw = current_yaw + math.radians(degrees)
-
-            # 欧拉角转四元数
-            goal_quat = euler.euler2quat(0.0, 0.0, goal_yaw)
-            # euler2quat returns (w, x, y, z), we need (x, y, z, w) for ROS
 
             # 创建PoseStamped消息
             pose_msg = PoseStamped()
@@ -155,10 +127,10 @@ class RelativeNavNode(Node):
             pose_msg.pose.position.y = goal_y
             pose_msg.pose.position.z = 0.0
 
-            pose_msg.pose.orientation.x = goal_quat[1]
-            pose_msg.pose.orientation.y = goal_quat[2]
-            pose_msg.pose.orientation.z = goal_quat[3]
-            pose_msg.pose.orientation.w = goal_quat[0]
+            pose_msg.pose.orientation.x = 0.0
+            pose_msg.pose.orientation.y = 0.0
+            pose_msg.pose.orientation.z = math.sin(goal_yaw / 2.0)
+            pose_msg.pose.orientation.w = math.cos(goal_yaw / 2.0)
 
             # 发布目标位姿
             self.goal_pub.publish(pose_msg)

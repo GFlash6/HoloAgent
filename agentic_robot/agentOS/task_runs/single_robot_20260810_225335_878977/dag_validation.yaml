@@ -1,0 +1,17 @@
+recorded_at: '2026-08-10T22:53:46.268018'
+status: passed
+conclusion: DAG 静态校验通过：依赖和单机器人串行约束有效
+checks:
+- name: deps_exist::nav_to_computer
+  passed: true
+  missing_dependencies: []
+- name: single_robot_serialization::nav_to_computer
+  passed: true
+  conflicting_nodes: []
+dag_execution_order:
+- step: 1
+  parallel_nodes:
+  - id: nav_to_computer
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,电脑

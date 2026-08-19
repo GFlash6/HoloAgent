@@ -1,0 +1,10 @@
+instruction: 探索并走到电脑前
+recorded_at: '2026-08-10T22:53:46.266374'
+dag:
+  description: 探索并走到电脑前
+  nodes:
+  - id: nav_to_computer
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,电脑
+    depends_on: []

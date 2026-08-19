@@ -5,7 +5,7 @@
 特点：
 - 直接输入纯文本长指令
 - 调用 long_horizon_text_runner.py
-- 默认先 dry-run，先做虚拟执行验证
+- 默认先 dry-run，只做 DAG 静态校验，不触发机器人
 - 监控文件中会明确写入验证结论
 """
 

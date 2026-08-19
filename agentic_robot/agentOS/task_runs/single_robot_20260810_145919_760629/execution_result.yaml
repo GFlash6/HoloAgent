@@ -1,0 +1,22 @@
+recorded_at: '2026-08-10T15:04:15.486329'
+status: passed
+conclusion: 真实执行完成：所有 DAG 节点已按验证后的顺序执行成功
+completed_nodes:
+- r13_nav_blue_crate
+- r13_nav_packing_table
+- r13_nav_yellow_crate
+- r13_rel_move_1
+- r13_rel_move_2
+failed_nodes: []
+remaining_nodes: []
+execution_trace:
+- node_id: r13_nav_blue_crate
+  success: true
+- node_id: r13_rel_move_1
+  success: true
+- node_id: r13_nav_yellow_crate
+  success: true
+- node_id: r13_rel_move_2
+  success: true
+- node_id: r13_nav_packing_table
+  success: true

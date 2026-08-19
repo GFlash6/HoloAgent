@@ -1,0 +1,17 @@
+recorded_at: '2026-08-10T01:00:00.240378'
+status: passed
+conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+checks:
+- name: deps_exist::r13_sem_nav_packing_table
+  passed: true
+  missing_dependencies: []
+- name: single_robot_serialization::r13_sem_nav_packing_table
+  passed: true
+  conflicting_nodes: []
+virtual_execution_trace:
+- step: 1
+  parallel_nodes:
+  - id: r13_sem_nav_packing_table
+    robot_id: 13
+    skill: sem-nav-skill
+    target: 一楼,仓库,packing table

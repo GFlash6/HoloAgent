@@ -7,6 +7,11 @@ import numpy as np
 import heapq
 import torch
 import os
+import base64
+import io
+import json
+from pathlib import Path
+from urllib import request
 
 
 def mask2segmap(masks: np.ndarray, image: np.ndarray,
@@ -360,6 +365,9 @@ def mask_nms(
     Returns:
         selected_idx (torch.Tensor): A tensor representing the selected indices of the masks after NMS.
     """
+    if masks.shape[0] == 0:
+        return torch.empty(0, dtype=torch.long, device=masks.device)
+
     scores, idx = scores.sort(0, descending=True)
     num_masks = idx.shape[0]
 
@@ -413,14 +421,14 @@ def mask_nms(
     # If there are no masks with scores above threshold, the top 3 masks are
     # selected
     if keep_conf.sum() == 0:
-        index = scores.topk(3).indices
-        keep_conf[index, 0] = True
+        index = scores.topk(min(3, num_masks)).indices
+        keep_conf[index] = True
     if keep_inner_u.sum() == 0:
-        index = scores.topk(3).indices
-        keep_inner_u[index, 0] = True
+        index = scores.topk(min(3, num_masks)).indices
+        keep_inner_u[index] = True
     if keep_inner_l.sum() == 0:
-        index = scores.topk(3).indices
-        keep_inner_l[index, 0] = True
+        index = scores.topk(min(3, num_masks)).indices
+        keep_inner_l[index] = True
     keep *= keep_conf
     keep *= keep_inner_u
     keep *= keep_inner_l
@@ -437,10 +445,171 @@ def box_xyxy_to_xywh(box_xyxy: torch.Tensor) -> torch.Tensor:
     return box_xywh
 
 
+def resolve_sam3_checkpoint(checkpoint_path: str | Path) -> Path:
+    checkpoint = Path(checkpoint_path).expanduser()
+    if checkpoint.is_dir():
+        checkpoint = checkpoint / "sam3.pt"
+    if not checkpoint.is_file():
+        raise FileNotFoundError(f"SAM3 checkpoint not found: {checkpoint}")
+    return checkpoint
+
+
+class Sam3TextMaskGenerator:
+    """Expose SAM3 text-prompt masks through the SAM automatic-mask API."""
+
+    def __init__(self, config: Dict[str, Any], device: str) -> None:
+        prompts = config.get("sam_prompts", [])
+        if not isinstance(prompts, list) or not all(
+                isinstance(prompt, str) and prompt.strip() for prompt in prompts):
+            raise ValueError("SAM3 requires a non-empty sam_prompts string list")
+        if not prompts:
+            raise ValueError("SAM3 requires at least one text prompt")
+
+        checkpoint = resolve_sam3_checkpoint(
+            Path(os.path.expandvars(config["sam_ckpt_path"])))
+        from sam3.model_builder import build_sam3_image_model
+        from sam3.model.sam3_image_processor import Sam3Processor
+
+        self.model = build_sam3_image_model(
+            checkpoint_path=str(checkpoint),
+            load_from_HF=False,
+            device=device,
+            eval_mode=True)
+        self.processor = Sam3Processor(
+            self.model,
+            device=device,
+            confidence_threshold=config.get("confidence_threshold", 0.5))
+        self.prompts = prompts
+        self.min_mask_region_area = config.get("min_mask_region_area", 100)
+
+    def generate(self, image: np.ndarray) -> List[Dict[str, Any]]:
+        from PIL import Image
+
+        state = self.processor.set_image(Image.fromarray(image))
+        masks = []
+        for prompt in self.prompts:
+            state = self.processor.set_text_prompt(prompt, state)
+            for segmentation, score, box in zip(
+                    state["masks"][:, 0], state["scores"], state["boxes"]):
+                segmentation = segmentation.cpu().numpy().astype(bool)
+                area = int(segmentation.sum())
+                if area < self.min_mask_region_area:
+                    continue
+                score = float(score.cpu())
+                x0, y0, x1, y1 = box.cpu().tolist()
+                masks.append({
+                    "segmentation": segmentation,
+                    "area": area,
+                    "bbox": [x0, y0, x1 - x0, y1 - y0],
+                    "predicted_iou": score,
+                    "stability_score": score,
+                    "prompt": prompt,
+                })
+        return masks
+
+    def to(self, device: str) -> None:
+        self.model.to(device)
+        self.processor.device = device
+
+    def cpu(self) -> None:
+        self.to("cpu")
+
+    def cuda(self) -> None:
+        self.to("cuda")
+
+
+class Sam3ServiceMaskGenerator:
+    """Use a separately hosted real SAM3 model through its HTTP API."""
+
+    is_remote = True
+
+    def __init__(self, config: Dict[str, Any]) -> None:
+        self.url = config.get("service_url", "http://127.0.0.1:8114").rstrip("/")
+        prompts = config.get("sam_prompts", [])
+        if not isinstance(prompts, list) or not prompts or not all(
+                isinstance(prompt, str) and prompt.strip() for prompt in prompts):
+            raise ValueError("SAM3 service requires a non-empty sam_prompts string list")
+        self.prompts = prompts
+        self.score_threshold = float(config.get("confidence_threshold", 0.05))
+        self.min_mask_region_area = int(config.get("min_mask_region_area", 100))
+        self.max_masks = int(config.get("max_masks", 50))
+        self.timeout = float(config.get("service_timeout", 120.0))
+        if not 0.0 <= self.score_threshold <= 1.0:
+            raise ValueError("confidence_threshold must be between 0 and 1")
+        if self.max_masks <= 0 or self.timeout <= 0:
+            raise ValueError("max_masks and service_timeout must be positive")
+
+    @staticmethod
+    def _encode_image(image: np.ndarray) -> str:
+        from PIL import Image
+
+        if image.dtype != np.uint8:
+            image = np.clip(image, 0, 255).astype(np.uint8)
+        buffer = io.BytesIO()
+        Image.fromarray(image).convert("RGB").save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+    def generate(self, image: np.ndarray) -> List[Dict[str, Any]]:
+        encoded = self._encode_image(image)
+        masks = []
+        for prompt in self.prompts:
+            payload = json.dumps({
+                "image_base64": encoded,
+                "text_prompt": prompt,
+            }).encode("utf-8")
+            http_request = request.Request(
+                f"{self.url}/segment",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST")
+            try:
+                with request.urlopen(http_request, timeout=self.timeout) as response:
+                    result = json.load(response)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"SAM3 service request failed at {self.url}: {exc}") from exc
+
+            results = result.get("results")
+            if not isinstance(results, list):
+                raise RuntimeError("SAM3 service returned a malformed response")
+            for item in results:
+                score = float(item["score"])
+                if score < self.score_threshold:
+                    continue
+                shape = tuple(int(value) for value in item["shape"])
+                if shape != image.shape[:2]:
+                    raise RuntimeError(
+                        f"SAM3 mask shape {shape} does not match image {image.shape[:2]}")
+                raw = base64.b64decode(item["mask_base64"], validate=True)
+                segmentation = np.frombuffer(raw, dtype=np.uint8)
+                if segmentation.size != shape[0] * shape[1]:
+                    raise RuntimeError("SAM3 service returned an invalid mask payload")
+                segmentation = segmentation.reshape(shape).astype(bool)
+                area = int(segmentation.sum())
+                if area < self.min_mask_region_area:
+                    continue
+                x0, y0, x1, y1 = (float(value) for value in item["box"])
+                masks.append({
+                    "segmentation": segmentation,
+                    "area": area,
+                    "bbox": [x0, y0, x1 - x0, y1 - y0],
+                    "predicted_iou": score,
+                    "stability_score": score,
+                    "prompt": prompt,
+                })
+        masks.sort(key=lambda item: item["predicted_iou"], reverse=True)
+        return masks[:self.max_masks]
+
+
 def load_sam(config: Dict[str, Any],
              device: str = "cuda") -> SamAutomaticMaskGenerator:
-    """Load SAM or SAM2 model."""
+    """Load SAM, SAM2, or text-prompted SAM3."""
     sam_version = config.get("sam_version", "2.1")
+
+    if sam_version == "3-service":
+        return Sam3ServiceMaskGenerator(config)
+    if sam_version == "3":
+        return Sam3TextMaskGenerator(config, device)
 
     model_cards = {
         "vit_b": "vit_b_01ec64.pth",

@@ -1,0 +1,72 @@
+session_datetime: '20260810_005350_394071'
+session_dir: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_005350_394071
+mode: single_robot
+dry_run: false
+created_at: '2026-08-10T00:53:50.425089'
+status: completed
+validation_conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+execution_conclusion: 真实执行完成：所有 DAG 节点已按验证后的顺序执行成功
+events:
+- timestamp: '2026-08-10T00:53:50.426932'
+  event_type: instruction_received
+  payload:
+    instruction: 让13号机器人导航到一楼仓库里的 yellow crate
+- timestamp: '2026-08-10T00:53:54.771691'
+  event_type: dag_generated
+  payload:
+    node_count: 1
+    description: 13号机器人导航到一楼仓库的yellow crate
+- timestamp: '2026-08-10T00:53:54.774415'
+  event_type: virtual_validation_completed
+  payload:
+    status: passed
+    conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+- timestamp: '2026-08-10T00:53:54.777602'
+  event_type: node_execution_started
+  payload:
+    node_id: r13_nav_warehouse_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: 一楼,仓库,yellow crate
+    started_at: '2026-08-10T00:53:54.775970'
+- timestamp: '2026-08-10T00:53:54.784399'
+  event_type: navigation_wait_started
+  payload:
+    robot_id: 13
+    target: nav_finish
+    started_at: '2026-08-10T00:53:54.784387'
+- timestamp: '2026-08-10T00:53:55.793147'
+  event_type: navigation_wait_completed
+  payload:
+    robot_id: 13
+    target: nav_finish
+    finished_at: '2026-08-10T00:53:55.793132'
+    completion_source: nav_finish
+- timestamp: '2026-08-10T00:53:55.797906'
+  event_type: node_execution_finished
+  payload:
+    node_id: r13_nav_warehouse_crate
+    robot_id: 13
+    skill: sem-nav-skill
+    target: 一楼,仓库,yellow crate
+    success: true
+    finished_at: '2026-08-10T00:53:55.795495'
+    duration_sec: 1.02
+- timestamp: '2026-08-10T00:53:55.804207'
+  event_type: physical_execution_completed
+  payload:
+    status: passed
+    conclusion: 真实执行完成：所有 DAG 节点已按验证后的顺序执行成功
+subtasks:
+- node_id: r13_nav_warehouse_crate
+  robot_id: 13
+  skill: sem-nav-skill
+  target: 一楼,仓库,yellow crate
+  status: passed
+  started_at: '2026-08-10T00:53:54.775970'
+  finished_at: '2026-08-10T00:53:55.795495'
+  duration_sec: 1.02
+artifacts:
+  dag_plan: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_005350_394071/dag_plan.yaml
+  virtual_validation: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_005350_394071/virtual_validation.yaml
+  execution_result: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_005350_394071/execution_result.yaml

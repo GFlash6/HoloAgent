@@ -1,0 +1,59 @@
+session_datetime: '20260810_225335_878977'
+session_dir: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_225335_878977
+mode: single_robot
+dry_run: false
+created_at: '2026-08-10T22:53:36.076175'
+status: execution_failed
+validation_conclusion: DAG 静态校验通过：依赖和单机器人串行约束有效
+execution_conclusion: 真实执行失败：失败节点=['nav_to_computer']，剩余节点=[]
+events:
+- timestamp: '2026-08-10T22:53:36.077851'
+  event_type: instruction_received
+  payload:
+    instruction: 探索并走到电脑前
+- timestamp: '2026-08-10T22:53:46.267113'
+  event_type: dag_generated
+  payload:
+    node_count: 1
+    description: 探索并走到电脑前
+- timestamp: '2026-08-10T22:53:46.269421'
+  event_type: dag_validation_completed
+  payload:
+    status: passed
+    conclusion: DAG 静态校验通过：依赖和单机器人串行约束有效
+- timestamp: '2026-08-10T22:53:46.272279'
+  event_type: node_execution_started
+  payload:
+    node_id: nav_to_computer
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,电脑
+    started_at: '2026-08-10T22:53:46.270725'
+- timestamp: '2026-08-10T22:53:51.279852'
+  event_type: node_execution_finished
+  payload:
+    node_id: nav_to_computer
+    robot_id: 13
+    skill: sem-nav-skill
+    target: current,current,电脑
+    success: false
+    finished_at: '2026-08-10T22:53:51.277236'
+    duration_sec: 5.007
+- timestamp: '2026-08-10T22:53:51.286838'
+  event_type: physical_execution_completed
+  payload:
+    status: failed
+    conclusion: 真实执行失败：失败节点=['nav_to_computer']，剩余节点=[]
+subtasks:
+- node_id: nav_to_computer
+  robot_id: 13
+  skill: sem-nav-skill
+  target: current,current,电脑
+  status: failed
+  started_at: '2026-08-10T22:53:46.270725'
+  finished_at: '2026-08-10T22:53:51.277236'
+  duration_sec: 5.007
+artifacts:
+  dag_plan: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_225335_878977/dag_plan.yaml
+  dag_validation: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_225335_878977/dag_validation.yaml
+  execution_result: /home/ubuntu/agents/unitree_sim_isaaclab/HoloAgent/agentic_robot/agentOS/task_runs/single_robot_20260810_225335_878977/execution_result.yaml

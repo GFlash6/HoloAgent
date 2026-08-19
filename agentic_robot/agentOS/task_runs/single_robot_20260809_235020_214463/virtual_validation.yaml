@@ -1,0 +1,17 @@
+recorded_at: '2026-08-09T23:50:27.016206'
+status: passed
+conclusion: 虚拟执行验证通过：流程顺序正确，可进入真实执行阶段
+checks:
+- name: deps_exist::rel_move_forward
+  passed: true
+  missing_dependencies: []
+- name: single_robot_serialization::rel_move_forward
+  passed: true
+  conflicting_nodes: []
+virtual_execution_trace:
+- step: 1
+  parallel_nodes:
+  - id: rel_move_forward
+    robot_id: 13
+    skill: rel-move-skill
+    target: 0.65,0,0
