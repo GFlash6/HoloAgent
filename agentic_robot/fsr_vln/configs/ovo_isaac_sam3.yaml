@@ -22,9 +22,10 @@ tracking:
   track_every: 1
 
 topic:
-  rgb_topic: /isaac/front/rgb
-  depth_topic: /isaac/front/depth
-  pose_topic: /isaac/front/pose
+  rgb_topic: sensors/front/rgb
+  depth_topic: sensors/front/depth
+  camera_info_topic: sensors/front/camera_info
+  world_frame: map
   sync_slop: 0.08
   sync_queue_size: 30
 
@@ -32,7 +33,7 @@ ros:
   max_queue: 120
   rgb_qos_depth: 10
   depth_qos_depth: 10
-  pose_qos_depth: 10
+  camera_info_qos_depth: 10
   publish_keyframe_pcd: true
   keyframe_pcd_frame_id: map
   publish_global_pcd: false
@@ -42,7 +43,7 @@ ros:
   query_min_score: 0.1
   query_min_margin: 0.03
 
-# The Isaac bridge already publishes the camera optical pose in the map frame.
+# Optional optical-frame convention correction, applied after map -> camera TF.
 pose_post_transform:
   - [1, 0, 0, 0]
   - [0, 1, 0, 0]

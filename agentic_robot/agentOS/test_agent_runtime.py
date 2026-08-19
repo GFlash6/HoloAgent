@@ -56,17 +56,17 @@ def test_skill_http_dispatch() -> None:
     runner._reset_control_center_reached_state = lambda robot_ids: calls.append(
         ("reset", robot_ids)
     )
-    runner._post_json = lambda url, payload=None: calls.append(
+    runner._post_json_response = lambda url, payload=None: calls.append(
         ("post", url, payload)
-    ) or True
-    runner._wait_for_robot_completion = lambda robot_id, target: calls.append(
-        ("wait", robot_id, target)
+    ) or {"goal_id": "nav-goal"}
+    runner._wait_for_action_completion = lambda robot_id, goal_id, target: calls.append(
+        ("wait_action", robot_id, goal_id, target)
     ) or True
 
     assert runner._call_navigation_skill(13, "semantic_nav", "一楼,实验室,充电桩")
     assert calls[-2:] == [
         ("post", "http://robot:8000/api/semantic_nav", {"cmd": "一楼,实验室,充电桩"}),
-        ("wait", 13, "nav_finish"),
+        ("wait_action", 13, "nav-goal", "一楼,实验室,充电桩"),
     ]
 
 
@@ -77,17 +77,17 @@ def test_arm_requires_real_completion() -> None:
     runner._reset_control_center_reached_state = lambda robot_ids: calls.append(
         ("reset", robot_ids)
     )
-    runner._post_json = lambda url, payload=None: calls.append(
+    runner._post_json_response = lambda url, payload=None: calls.append(
         ("post", url, payload)
-    ) or True
-    runner._wait_for_robot_completion = lambda robot_id, target: calls.append(
-        ("wait", robot_id, target)
+    ) or {"goal_id": "arm-goal"}
+    runner._wait_for_action_completion = lambda robot_id, goal_id, target: calls.append(
+        ("wait_action", robot_id, goal_id, target)
     ) or True
 
     assert runner._call_robot_arm(13, "wave_above_head")
     assert calls[-2:] == [
         ("post", "http://robot:8000/api/arm/wave_above_head", None),
-        ("wait", 13, "arm_finish:wave_above_head"),
+        ("wait_action", 13, "arm-goal", "wave_above_head"),
     ]
 
 

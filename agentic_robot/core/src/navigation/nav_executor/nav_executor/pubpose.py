@@ -30,7 +30,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
-from std_msgs.msg import String
+from std_msgs.msg import Empty, String
 import math
 import yaml
 
@@ -138,24 +138,28 @@ class WaypointNavigator(Node):
         )
         self.semantic_navigation_sub = self.create_subscription(
             PoseStamped,
-            'object_pose',
+            'navigation/goal_pose',
             self.semantic_callback,
             10
         )
         self.semantic_approach_sub = self.create_subscription(
             PoseStamped,
-            'semantic_approach_pose',
+            'navigation/semantic/coarse_goal',
             self.semantic_approach_callback,
             10
         )
+        self.cancel_sub = self.create_subscription(
+            Empty, 'navigation/cancel', self.cancel_navigation_callback, 10)
 
         # ---------- publishers ----------
         self.waypoint_reached_pub = self.create_publisher(
             String, 'waypoint_reached', 10)
+        self.goal_status_pub = self.create_publisher(
+            String, 'navigation/goal_status', 10)
         self.semantic_approach_status_pub = self.create_publisher(
-            String, 'semantic_approach_status', 10)
+            String, 'navigation/semantic/coarse_status', 10)
         self.arm_signal_pub = self.create_publisher(
-            String, 'arm_signal_pub', 10)
+            String, 'manipulation/command', 10)
 
         # ---------- nav2 ----------
         self.navigator = BasicNavigator()
@@ -165,7 +169,7 @@ class WaypointNavigator(Node):
         self.total_waypoints = 0
         self.navigation_active = False
         self.recoveries = 0
-        self.single_pose_status_pub = self.waypoint_reached_pub
+        self.single_pose_status_pub = self.goal_status_pub
 
         # Expose registry as ROS parameters (~/signals/<name>/*)
         self._declare_registry_params()
@@ -197,11 +201,17 @@ class WaypointNavigator(Node):
 
     def semantic_callback(self, msg):
         self.get_logger().info("Navigating to target pose from object_pose...")
-        self._start_single_pose(msg, self.waypoint_reached_pub)
+        self._start_single_pose(msg, self.goal_status_pub)
 
     def semantic_approach_callback(self, msg):
         self.get_logger().info("Navigating to internal semantic approach pose...")
         self._start_single_pose(msg, self.semantic_approach_status_pub)
+
+    def cancel_navigation_callback(self, _msg):
+        """Cancel the active Nav2 task through the canonical ROS control topic."""
+        if not self.navigation_active:
+            return
+        self.navigator.cancelTask()
 
     def _start_single_pose(self, msg, status_publisher):
         if self.navigation_active:
@@ -221,6 +231,8 @@ class WaypointNavigator(Node):
         msg = String()
         msg.data = status
         self.single_pose_status_pub.publish(msg)
+        if self.single_pose_status_pub == self.goal_status_pub:
+            self.waypoint_reached_pub.publish(msg)
         self.get_logger().info(f"Published single-pose status: {status}")
 
     # ------------------------------------------------------------------
@@ -483,9 +495,19 @@ class WaypointNavigator(Node):
 def main(args=None):
     rclpy.init(args=args)
     waypoint_navigator = WaypointNavigator()
-    rclpy.spin(waypoint_navigator)
-    waypoint_navigator.navigator.lifecycleShutdown()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(waypoint_navigator)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            if rclpy.ok():
+                waypoint_navigator.navigator.lifecycleShutdown()
+            waypoint_navigator.destroy_node()
+        except KeyboardInterrupt:
+            pass
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

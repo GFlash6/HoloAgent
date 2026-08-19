@@ -20,7 +20,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-COLCON_ARGS=(--symlink-install)
+# ROS Humble is installed for Ubuntu's Python 3.10.  Pin CMake interface
+# generation so an activated/newer conda Python cannot produce unloadable
+# rosidl type-support extensions.
+COLCON_ARGS=(
+    --symlink-install
+    --cmake-args
+    -DPython3_EXECUTABLE=/usr/bin/python3
+    -DPYTHON_EXECUTABLE=/usr/bin/python3
+)
 TARGET_WS="all"
 TARGET_PKGS=()
 JOBS=""

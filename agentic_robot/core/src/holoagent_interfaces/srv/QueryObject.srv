@@ -1,0 +1,11 @@
+string query
+geometry_msgs/PoseStamped observer_pose
+bool refine
+---
+bool found
+string object_id
+geometry_msgs/PointStamped center
+float32 score
+uint32 observation_count
+builtin_interfaces/Time source_stamp
+string detail

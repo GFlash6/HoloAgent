@@ -31,6 +31,8 @@ from typing import Any, Optional
 
 import requests
 import rclpy
+from action_msgs.msg import GoalStatus
+from rclpy.action import ActionClient
 from rclpy.node import Node
 from std_msgs.msg import String
 import uvicorn
@@ -97,6 +99,25 @@ def _build_msg(
     return msg
 
 
+def _build_action_goal(
+        action_type_str: str,
+        body_spec: dict,
+        path_params: dict,
+        json_body: dict):
+    """Build an action Goal using the same flat HTTP field mapping as topics."""
+    pkg, _, type_name = action_type_str.partition("/")
+    import importlib
+    ActionClass = getattr(importlib.import_module(f"{pkg}.action"), type_name)
+    goal = ActionClass.Goal()
+    for goal_field, source in body_spec.items():
+        if isinstance(source, str) and source.startswith("@path."):
+            value = path_params.get(source[len("@path."):], "")
+        else:
+            value = json_body.get(source, "") if json_body else source
+        setattr(goal, goal_field, value)
+    return ActionClass, goal
+
+
 # ---------------------------------------------------------------------------
 # ROS Node
 # ---------------------------------------------------------------------------
@@ -114,6 +135,11 @@ class RobotBridgeNode(Node):
         # 注意：rclpy.Node 内部已经使用 self._publishers 保存 publisher 列表，
         # 这里不能覆写该属性，否则 create_publisher() 会因类型不匹配而崩溃。
         self._topic_publishers: dict[str, Any] = {}
+        self._action_clients: dict[str, ActionClient] = {}
+        self._action_types: dict[str, str] = {}
+        self._action_goals: dict[str, Any] = {}
+        self._action_states: dict[str, dict] = {}
+        self._action_lock = threading.Lock()
         for ep in config.get("endpoints", []):
             ros = ep.get("ros", {})
             if ros.get("type") == "topic":
@@ -128,6 +154,17 @@ class RobotBridgeNode(Node):
                         MsgClass, name, 10)
                     self.get_logger().info(
                         f"Publisher created: {name} ({msg_type_str})")
+            elif ros.get("type") == "action":
+                name = ros["name"]
+                action_type = ros["action_type"]
+                pkg, _, type_name = action_type.partition("/")
+                import importlib
+                ActionClass = getattr(
+                    importlib.import_module(f"{pkg}.action"), type_name)
+                self._action_clients[name] = ActionClient(self, ActionClass, name)
+                self._action_types[name] = action_type
+                self.get_logger().info(
+                    f"Action client created: {name} ({action_type})")
 
         # 反向订阅
         for rev in config.get("reverse", []):
@@ -177,6 +214,87 @@ class RobotBridgeNode(Node):
         pub.publish(msg)
         return True
 
+    def send_action_goal(self, action_name: str, goal, timeout: float = 2.0) -> str:
+        client = self._action_clients.get(action_name)
+        if client is None:
+            raise RuntimeError(f"Action client {action_name} is not configured")
+        if not client.wait_for_server(timeout_sec=timeout):
+            raise RuntimeError(f"Action server {action_name} is unavailable")
+        accepted = threading.Event()
+        outcome = {}
+
+        def goal_response(future):
+            try:
+                handle = future.result()
+                outcome["handle"] = handle
+            except Exception as exc:
+                outcome["error"] = exc
+            accepted.set()
+
+        client.send_goal_async(goal).add_done_callback(goal_response)
+        if not accepted.wait(timeout):
+            raise TimeoutError(f"Action goal response timed out: {action_name}")
+        if "error" in outcome:
+            raise RuntimeError(str(outcome["error"]))
+        handle = outcome["handle"]
+        if not handle.accepted:
+            raise RuntimeError(f"Action goal rejected: {action_name}")
+        goal_id = bytes(handle.goal_id.uuid).hex()
+        with self._action_lock:
+            self._action_goals[goal_id] = handle
+            self._action_states[goal_id] = {"state": "accepted", "detail": ""}
+
+        def action_result(future):
+            try:
+                wrapped = future.result()
+                result = wrapped.result
+                if wrapped.status == GoalStatus.STATUS_CANCELED:
+                    state = "canceled"
+                else:
+                    state = (
+                        "succeeded"
+                        if bool(getattr(result, "success", False))
+                        else "failed"
+                    )
+                detail = str(getattr(result, "detail", ""))
+            except Exception as exc:
+                state, detail = "failed", str(exc)
+            with self._action_lock:
+                self._action_states[goal_id] = {"state": state, "detail": detail}
+                self._action_goals.pop(goal_id, None)
+
+        handle.get_result_async().add_done_callback(action_result)
+        return goal_id
+
+    def action_state(self, goal_id: str) -> Optional[dict]:
+        with self._action_lock:
+            value = self._action_states.get(goal_id)
+            return dict(value) if value is not None else None
+
+    def cancel_action(self, goal_id: str, timeout: float = 2.0) -> bool:
+        with self._action_lock:
+            handle = self._action_goals.get(goal_id)
+        if handle is None:
+            return False
+        completed = threading.Event()
+        outcome = {}
+
+        def canceled(future):
+            try:
+                outcome["accepted"] = bool(future.result().goals_canceling)
+            except Exception:
+                outcome["accepted"] = False
+            completed.set()
+
+        handle.cancel_goal_async().add_done_callback(canceled)
+        if not completed.wait(timeout):
+            return False
+        if outcome.get("accepted"):
+            with self._action_lock:
+                self._action_states[goal_id] = {
+                    "state": "canceling", "detail": "cancel requested"}
+        return bool(outcome.get("accepted"))
+
 
 # ---------------------------------------------------------------------------
 # FastAPI app factory
@@ -193,10 +311,11 @@ def build_fastapi_app(ros_node: RobotBridgeNode, config: dict) -> FastAPI:
         ros_type = ros_spec.get("type", "topic")
         ros_name = ros_spec.get("name", "")
         msg_type = ros_spec.get("msg_type", "std_msgs/String")
+        action_type = ros_spec.get("action_type", "")
         body_spec = ros_spec.get("body", {})
 
         # Closure to capture loop variables
-        def _make_handler(r_type, r_name, m_type, b_spec):
+        def _make_handler(r_type, r_name, m_type, a_type, b_spec):
             async def _handler(request: Request):
                 try:
                     json_body = {}
@@ -220,8 +339,10 @@ def build_fastapi_app(ros_node: RobotBridgeNode, config: dict) -> FastAPI:
                                 "detail": "service calls not yet implemented"}
 
                     elif r_type == "action":
-                        return {"success": False,
-                                "detail": "action calls not yet implemented"}
+                        _, goal = _build_action_goal(
+                            a_type, b_spec, request.path_params, json_body)
+                        goal_id = ros_node.send_action_goal(r_name, goal)
+                        return {"success": True, "goal_id": goal_id}
 
                     else:
                         raise HTTPException(
@@ -235,7 +356,8 @@ def build_fastapi_app(ros_node: RobotBridgeNode, config: dict) -> FastAPI:
 
             return _handler
 
-        handler = _make_handler(ros_type, ros_name, msg_type, body_spec)
+        handler = _make_handler(
+            ros_type, ros_name, msg_type, action_type, body_spec)
 
         # 注册路由（支持 {var} 路径参数）
         if method == "POST":
@@ -246,6 +368,20 @@ def build_fastapi_app(ros_node: RobotBridgeNode, config: dict) -> FastAPI:
     @app.get("/health")
     async def health():
         return {"status": "ok", "node": "robot_bridge_node"}
+
+    @app.get("/api/tasks/{goal_id}")
+    async def task_status(goal_id: str):
+        state = ros_node.action_state(goal_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail="unknown action goal")
+        return {"goal_id": goal_id, **state}
+
+    @app.post("/api/tasks/{goal_id}/cancel")
+    async def cancel_task(goal_id: str):
+        if not ros_node.cancel_action(goal_id):
+            raise HTTPException(
+                status_code=404, detail="action goal is not active or cancel failed")
+        return {"success": True, "goal_id": goal_id}
 
     return app
 

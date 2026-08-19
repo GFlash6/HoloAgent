@@ -21,9 +21,11 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from sensor_msgs.msg import Image, CameraInfo, PointCloud2, PointField
-from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
 from message_filters import Subscriber, ApproximateTimeSynchronizer
+from rclpy.duration import Duration
+from rclpy.time import Time
+from tf2_ros import Buffer, TransformException, TransformListener
 
 # ...existing code...
 from .logger import Logger
@@ -54,8 +56,8 @@ class SemanticMapping(Node):  # 修复拼写错误
     """
     ROS2 在线语义建图：
 
-    - 订阅  / RGB / Depth / Pose
-    - 同步 (RGB, Depth, Pose)
+    - 订阅 RGB / Depth / CameraInfo
+    - 通过 TF 查询 map -> camera，避免传感器桥反向依赖定位
     - 队列缓存帧，主循环按 skip 频率处理
     """
 
@@ -185,13 +187,15 @@ class SemanticMapping(Node):  # 修复拼写错误
         depth_topic = ros_cfg.get(
             "depth_topic",
             "/zed/zed_node/depth/depth_registered")
-        pose_topic = ros_cfg.get("pose_topic", "/zed/zed_node/pose")
+        camera_info_topic = ros_cfg.get(
+            "camera_info_topic", "/zed/zed_node/rgb/camera_info")
+        self.world_frame = ros_cfg.get("world_frame", "map")
         self.get_logger().info(
-            f"Subscribing to topics: {rgb_topic}, {depth_topic}, {pose_topic}")
+            f"Subscribing to topics: {rgb_topic}, {depth_topic}, {camera_info_topic}")
         # QoS 缓存深度（单独可调）
         qos_rgb_depth = config.get("ros", {}).get("rgb_qos_depth", 30)
         qos_depth_depth = config.get("ros", {}).get("depth_qos_depth", 30)
-        qos_pose_depth = config.get("ros", {}).get("pose_qos_depth", 100)
+        qos_info_depth = config.get("ros", {}).get("camera_info_qos_depth", 30)
 
         # # 选择可靠性策略（如需与发布端一致可做条件判断）
         # reliability = QoSReliabilityPolicy.BEST_EFFORT
@@ -208,24 +212,29 @@ class SemanticMapping(Node):  # 修复拼写错误
             history=QoSHistoryPolicy.KEEP_LAST,
             depth=qos_depth_depth
         )
-        qos_pose = QoSProfile(
+        qos_info = QoSProfile(
             reliability=reliability,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=qos_pose_depth
+            depth=qos_info_depth
         )
 
         rgb_sub = Subscriber(self, Image, rgb_topic, qos_profile=qos_rgb)
         depth_sub = Subscriber(self, Image, depth_topic, qos_profile=qos_depth)
-        pose_sub = Subscriber(
+        camera_info_sub = Subscriber(
             self,
-            PoseStamped,
-            pose_topic,
-            qos_profile=qos_pose)
+            CameraInfo,
+            camera_info_topic,
+            qos_profile=qos_info)
+
+        self.tf_buffer = Buffer(cache_time=Duration(seconds=30.0))
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         sync_slop = ros_cfg.get("sync_slop", 0.05)
         queue_size = ros_cfg.get("sync_queue_size", 30)
         self.ts = ApproximateTimeSynchronizer(
-            [rgb_sub, depth_sub, pose_sub], queue_size=queue_size, slop=sync_slop)
+            [rgb_sub, depth_sub, camera_info_sub],
+            queue_size=queue_size,
+            slop=sync_slop)
         self.ts.registerCallback(self._synced_cb)
 
         # 关键帧局部点云发布
@@ -293,7 +302,7 @@ class SemanticMapping(Node):  # 修复拼写错误
             self,
             rgb_msg: Image,
             depth_msg: Image,
-            pose_msg: PoseStamped):
+            camera_info_msg: CameraInfo):
         if not self.cam_info_received:
             self.get_logger().warning("Camera info not received yet, skipping frame.")
             return
@@ -314,9 +323,23 @@ class SemanticMapping(Node):  # 修复拼写错误
             # Y = (v - cy) * Z / fy
             Y = (rows - cy) * depth / fy
             depth[Y < -1.0] = 0.0
-        # 构造位姿
-        qx, qy, qz, qw = pose_msg.pose.orientation.x, pose_msg.pose.orientation.y, pose_msg.pose.orientation.z, pose_msg.pose.orientation.w
-        tx, ty, tz = pose_msg.pose.position.x, pose_msg.pose.position.y, pose_msg.pose.position.z
+        incoming_intrinsics = np.asarray(camera_info_msg.k, dtype=np.float32).reshape(3, 3)
+        if not np.allclose(incoming_intrinsics, self.intrinsics_np, atol=1e-3):
+            self.get_logger().error("CameraInfo does not match semantic mapper intrinsics")
+            return
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                self.world_frame,
+                rgb_msg.header.frame_id,
+                Time.from_msg(rgb_msg.header.stamp),
+                timeout=Duration(seconds=0.05))
+        except TransformException as exc:
+            self.get_logger().warning(f"Camera TF unavailable for frame: {exc}")
+            return
+        rotation = transform.transform.rotation
+        translation = transform.transform.translation
+        qx, qy, qz, qw = rotation.x, rotation.y, rotation.z, rotation.w
+        tx, ty, tz = translation.x, translation.y, translation.z
         R = self._quat_to_rot(np.array([qw, qx, qy, qz], dtype=np.float32))
         c2w_np = np.eye(4, dtype=np.float32)
         c2w_np[:3, :3] = R
@@ -477,7 +500,7 @@ class SemanticMapping(Node):  # 修复拼写错误
             object_id = object_ids[best_index]
             pcd, _, pcd_object_ids = self.slam_backbone.get_map()
             pcd = pcd.detach().cpu().numpy()
-            pcd_object_ids = pcd_object_ids.detach().cpu().numpy()
+            pcd_object_ids = pcd_object_ids.detach().cpu().numpy().reshape(-1)
             if len(pcd) != len(pcd_object_ids):
                 raise RuntimeError("online map changed during query")
             points = pcd[pcd_object_ids == object_id]
@@ -496,7 +519,7 @@ class SemanticMapping(Node):  # 修复拼写错误
             "observation_count": len(obj.kfs_ids),
             "last_frame_id": max(obj.kfs_ids) if obj.kfs_ids else None,
             "source_timestamp_ms": int(time.time() * 1000),
-            "frame_id": self.global_pcd_frame_id,
+            "frame_id": self.world_frame,
         }
 
     def _start_query_server(self) -> None:

@@ -1,0 +1,12 @@
+string query
+float32 coarse_standoff
+float32 fine_standoff
+---
+bool success
+string object_id
+geometry_msgs/PoseStamped final_pose
+string detail
+---
+string phase
+float32 score
+geometry_msgs/PoseStamped current_goal

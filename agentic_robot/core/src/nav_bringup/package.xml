@@ -16,6 +16,12 @@
   <author email="willson@robotis.com">Will Son</author>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>localization_monitor</exec_depend>
+  <exec_depend>manipulation</exec_depend>
+  <exec_depend>nav_executor</exec_depend>
+  <exec_depend>relative_goal</exec_depend>
+  <exec_depend>semantic_goal</exec_depend>
+  <exec_depend>semantic_map_bridge</exec_depend>
   <exec_depend>topic_tools</exec_depend>
   <export>
     <build_type>ament_cmake</build_type>

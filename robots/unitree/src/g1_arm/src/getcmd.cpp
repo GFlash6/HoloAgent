@@ -45,6 +45,8 @@ public:
     navstatus_subscription_ = this->create_subscription<std_msgs::msg::String>(
         "waypoint_reached", 10, std::bind(&CmdSubscriber::topic_callback, this, std::placeholders::_1));
     armcmd_subscription_ = this->create_subscription<std_msgs::msg::String>(
+        "manipulation/command", 10, std::bind(&CmdSubscriber::topic_callback, this, std::placeholders::_1));
+    legacy_armcmd_subscription_ = this->create_subscription<std_msgs::msg::String>(
         "arm_signal_pub", 10, std::bind(&CmdSubscriber::topic_callback, this, std::placeholders::_1));
     // add interface for holomotion/motion-tracking
     motion_tracking_cmd_subscription_ = this->create_subscription<std_msgs::msg::String>(
@@ -63,6 +65,7 @@ public:
 private:
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr navstatus_subscription_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr armcmd_subscription_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr legacy_armcmd_subscription_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr motion_tracking_cmd_subscription_;
   int fd_;
   

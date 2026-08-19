@@ -475,6 +475,7 @@ class Sam3TextMaskGenerator:
             load_from_HF=False,
             device=device,
             eval_mode=True)
+        self.model.to(device)
         self.processor = Sam3Processor(
             self.model,
             device=device,

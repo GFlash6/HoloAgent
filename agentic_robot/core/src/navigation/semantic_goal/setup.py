@@ -1,21 +1,7 @@
-import os
 from setuptools import setup
 from glob import glob
 
 package_name = 'semantic_goal'
-
-_default_conda_python_candidates = [
-    '/home/unitree/miniconda3/envs/holoagent_semantic_mapping/bin/python',
-    '/root/miniconda3/envs/holoagent_semantic_mapping/bin/python',
-]
-conda_python = os.environ.get('SEMANTIC_GOAL_CONDA_PYTHON')
-if not conda_python:
-    for candidate in _default_conda_python_candidates:
-        if os.path.exists(candidate):
-            conda_python = candidate
-            break
-if not conda_python:
-    conda_python = _default_conda_python_candidates[0]
 
 setup(
     name=package_name,
@@ -31,8 +17,12 @@ setup(
     zip_safe=True,
     maintainer='yu.zhao',
     maintainer_email='yu.zhao@horizon.auto',
-    description='Semantic goal publisher: queries HMSG scene graph and publishes Nav2 waypoints',
+    description='Two-stage semantic navigation ROS action coordinator',
     license='Apache-2.0',
     tests_require=['pytest'],
-    scripts=['semantic_goal/semantic_goal_node.py'],
+    entry_points={
+        'console_scripts': [
+            'semantic_goal_node = semantic_goal.semantic_goal_node:main',
+        ],
+    },
 )

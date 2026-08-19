@@ -21,7 +21,6 @@ from typing import List, Optional, Set
 
 import requests
 import yaml
-from openai import DefaultHttpxClient, OpenAI
 
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[1] / "task_runs"
@@ -177,6 +176,10 @@ class LongHorizonTextRunner:
         self._write_yaml(self.monitor_path, self.monitor)
 
     def _build_llm_client(self):
+        try:
+            from openai import DefaultHttpxClient, OpenAI
+        except ImportError as exc:
+            raise RuntimeError("运行真实 Agent 需要安装 openai Python SDK") from exc
         qwen_api_key = os.getenv("QWEN_API_KEY")
         if not qwen_api_key:
             raise RuntimeError("未配置 QWEN_API_KEY")
@@ -258,6 +261,7 @@ class LongHorizonTextRunner:
   - "navigation": 兼容已有命名点导航，target 只能是 {sorted(self.supported_navigation_targets)}
 - target:
   - skill="arm-skill" 时只能是 {sorted(self.supported_arm_targets)}
+  - skill="sem-nav-skill" 时 floor、room、object 都使用简洁英文描述，即使用户输入中文；视觉语义模型的开放词汇查询使用英文
 - depends_on: 字符串数组，没有依赖时必须输出 []
 - 用户没有指定 robot_id 时使用 {self.default_robot_id}
 - “同时”表示并行，不要互相依赖
@@ -777,7 +781,8 @@ class LongHorizonTextRunner:
         )
         self._reset_control_center_reached_state([robot_id])
         url = f"{self.robot_urls[robot_id]}/api/arm/{target}"
-        if not self._post_json(url):
+        accepted = self._post_json_response(url)
+        if accepted is None:
             self._append_event(
                 "arm_trigger_failed",
                 {"robot_id": robot_id, "target": target},
@@ -786,22 +791,86 @@ class LongHorizonTextRunner:
         self._append_event(
             "arm_trigger_accepted", {"robot_id": robot_id, "target": target}
         )
+        goal_id = str(accepted.get("goal_id", ""))
+        if goal_id:
+            return self._wait_for_action_completion(robot_id, goal_id, target)
         return self._wait_for_robot_completion(robot_id, f"arm_finish:{target}")
 
     def _call_navigation_skill(self, robot_id: int, endpoint: str, target: str) -> bool:
         self._reset_control_center_reached_state([robot_id])
         url = f"{self.robot_urls[robot_id]}/api/{endpoint}"
-        if not self._post_json(url, {"cmd": target}):
+        accepted = self._post_json_response(url, {"cmd": target})
+        if accepted is None:
             return False
+        goal_id = str(accepted.get("goal_id", ""))
+        if goal_id:
+            return self._wait_for_action_completion(robot_id, goal_id, target)
         return self._wait_for_robot_completion(robot_id, "nav_finish")
 
-    def _post_json(self, url: str, payload: Optional[dict] = None) -> bool:
+    def _wait_for_action_completion(
+        self, robot_id: int, goal_id: str, target: str
+    ) -> bool:
+        self._append_event(
+            "action_wait_started",
+            {"robot_id": robot_id, "goal_id": goal_id, "target": target},
+        )
+        deadline = time.time() + self._NAV_WAIT_TIMEOUT_SEC
+        while time.time() < deadline:
+            try:
+                response = requests.get(
+                    f"{self.robot_urls[robot_id]}/api/tasks/{goal_id}",
+                    timeout=self._CONTROL_CENTER_TIMEOUT_SEC,
+                )
+                status = response.json() if response.ok else {}
+                state = str(status.get("state", ""))
+                if state == "succeeded":
+                    self._append_event(
+                        "action_wait_completed",
+                        {
+                            "robot_id": robot_id,
+                            "goal_id": goal_id,
+                            "target": target,
+                            "detail": status.get("detail", ""),
+                        },
+                    )
+                    return True
+                if state in {"failed", "canceled", "rejected"}:
+                    self._append_event(
+                        "action_wait_failed",
+                        {
+                            "robot_id": robot_id,
+                            "goal_id": goal_id,
+                            "target": target,
+                            "state": state,
+                            "detail": status.get("detail", ""),
+                        },
+                    )
+                    return False
+            except Exception:
+                pass
+            time.sleep(0.5)
+        self._append_event(
+            "action_wait_timeout",
+            {"robot_id": robot_id, "goal_id": goal_id, "target": target},
+        )
+        return False
+
+    def _post_json_response(
+        self, url: str, payload: Optional[dict] = None
+    ) -> Optional[dict]:
         try:
             response = requests.post(
-                url, json=payload, timeout=self._HTTP_TIMEOUT_SEC)
-            return response.ok
+                url, json=payload, timeout=self._HTTP_TIMEOUT_SEC
+            )
+            if not response.ok:
+                return None
+            value = response.json()
+            return value if isinstance(value, dict) else {}
         except Exception:
-            return False
+            return None
+
+    def _post_json(self, url: str, payload: Optional[dict] = None) -> bool:
+        return self._post_json_response(url, payload) is not None
 
     def _reset_control_center_reached_state(self, robot_ids: List[int]) -> None:
         try:

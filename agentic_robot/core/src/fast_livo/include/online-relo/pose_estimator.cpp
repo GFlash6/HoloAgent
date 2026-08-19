@@ -692,7 +692,8 @@ bool pose_estimator::relocalization() {
   }
   // lidar to map
   currentPoseInMap = Eigen::Affine3f(transform);
-  const rclcpp::Time publish_stamp = this->node->now();
+  const rclcpp::Time publish_stamp(
+      static_cast<int64_t>(std::llround(currentCloudTime * 1e9)), RCL_ROS_TIME);
   // cloud in map frame
   reloCloudInMap->clear();
   pcl::transformPointCloud(*input_cloud, *reloCloudInMap, currentPoseInMap.matrix());
@@ -751,7 +752,8 @@ void pose_estimator::lio_incremental() {
   cloudInBody->clear();
   // transformPointCloud(currentCloud, lidar2body, cloudInBody);
   pcl::transformPointCloud(*currentCloud, *cloudInBody, lidar2body.matrix());
-  const rclcpp::Time publish_stamp = this->node->now();
+  const rclcpp::Time publish_stamp(
+      static_cast<int64_t>(std::llround(currentCloudTime * 1e9)), RCL_ROS_TIME);
   publishCloud(pubRelocBodyCloud, cloudInBody, publish_stamp, "base_link");
   
   // cloud in map frame
@@ -1172,14 +1174,14 @@ void pose_estimator::publish_odometry(
 void pose_estimator::publish_path(
     const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr &pub) {
   msg_body_pose.header.frame_id = "map";
-  msg_body_pose.header.stamp = this->node->now();
+  msg_body_pose.header.stamp = odomAftMapped.header.stamp;
   msg_body_pose.pose.position.x = odomAftMapped.pose.pose.position.x;
   msg_body_pose.pose.position.y = odomAftMapped.pose.pose.position.y;
   msg_body_pose.pose.position.z = odomAftMapped.pose.pose.position.z;
   msg_body_pose.pose.orientation = odomAftMapped.pose.pose.orientation;
 
   path.header.frame_id = "map";
-  path.header.stamp = this->node->now();
+  path.header.stamp = odomAftMapped.header.stamp;
   path.poses.clear();
   path.poses.push_back(msg_body_pose);
   pub->publish(path);

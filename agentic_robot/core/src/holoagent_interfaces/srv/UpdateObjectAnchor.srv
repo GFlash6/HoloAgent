@@ -1,0 +1,8 @@
+string object_id
+geometry_msgs/PointStamped center
+float32 score
+uint32 observation_count
+builtin_interfaces/Time source_stamp
+---
+bool accepted
+string detail

@@ -1,0 +1,6 @@
+string skill
+---
+bool success
+string detail
+---
+string phase

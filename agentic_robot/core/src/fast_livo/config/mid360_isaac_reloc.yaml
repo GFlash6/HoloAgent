@@ -1,0 +1,29 @@
+/**:
+  ros__parameters:
+    use_sim_time: true
+    relo:
+      priorDir: "/tmp/holoagent_prior_map/"
+      cloudTopic: "lio/undistorted_points"
+      poseTopic: "lio/odom"
+      searchDis: 3.0
+      searchNum: 3
+      trustDis: 2.0
+      localmap_res: 0.20
+      currentcloud_res: 0.20
+      robot_name: "g1"
+      extrinsic_T: [0.0398735, 0.00227, 0.26826]
+      extrinsic_R: [0.999194395, 0.0, 0.040131795,
+                    0.0, 1.0, 0.0,
+                   -0.040131795, 0.0, 0.999194395]
+      relo_interval: 5
+      sc_init_enable: false
+      external_flg: true
+      reg_mode: 0
+      ndt_resolution: 1.0
+      twist_window_duration: 1.0
+      init_cloud_num: 3
+      accum_enable: true
+      accum_window_size: 3
+      initpose_prior: [0.0, 0.0, 0.0]
+      enable_prior_pose: true
+      ndt_score_threshold: 0.35

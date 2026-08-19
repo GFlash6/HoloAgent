@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>semantic_map_bridge</name>
+  <version>0.1.0</version>
+  <description>ROS facade for HMSG and online OVO semantic-map HTTP backends.</description>
+  <maintainer email="yu.zhao@horizon.auto">HoloAgent maintainers</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+  <depend>geometry_msgs</depend>
+  <depend>holoagent_interfaces</depend>
+  <depend>rclpy</depend>
+
+  <test_depend>python3-pytest</test_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

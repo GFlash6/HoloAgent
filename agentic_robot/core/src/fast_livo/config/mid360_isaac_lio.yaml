@@ -1,0 +1,24 @@
+/**:
+  ros__parameters:
+    use_sim_time: true
+    common:
+      lid_topic: "sensors/lidar/points"
+      imu_topic: "sensors/imu/data"
+      img_en: 0
+      lidar_en: 1
+    extrin_calib:
+      extrinsic_T: [0.0398735, 0.00227, 0.26826]
+      extrinsic_R: [0.999194395, 0.0, 0.040131795,
+                    0.0, 1.0, 0.0,
+                   -0.040131795, 0.0, 0.999194395]
+    preprocess:
+      lidar_type: 7
+      point_filter_num: 1
+      scan_line: 32
+      blind: 0.1
+    imu:
+      imu_en: true
+    wheel:
+      enable_wheel_odom: false
+    uav:
+      gravity_align_en: true

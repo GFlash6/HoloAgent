@@ -61,24 +61,24 @@ endpoints:
       method: POST
       path: /api/semantic_nav
     ros:
-      type: topic
-      name: /chat_loc_pub
-      msg_type: std_msgs/String
+      type: action
+      name: navigation/navigate_to_object
+      action_type: holoagent_interfaces/NavigateToObject
       body:
-        data: "cmd"
-    description: "语义导航：POST body {cmd: 'floor,room,object'}"
+        query: "cmd"
+    description: "语义导航 action：返回 goal_id，可查询或取消"
 
   # ---------- arm skill ----------
   - http:
       method: POST
       path: /api/arm/{skill}
     ros:
-      type: topic
-      name: arm_signal_pub
-      msg_type: std_msgs/String
+      type: action
+      name: manipulation/execute_skill
+      action_type: holoagent_interfaces/ExecuteArmSkill
       body:
-        data: "@path.skill"
-    description: "触发 arm skill（wave_above_head / wave_under_head / ...）"
+        skill: "@path.skill"
+    description: "机械臂技能 action：返回 goal_id，可查询或取消"
 
   # ---------- cancel nav ----------
   - http:
@@ -102,7 +102,7 @@ reverse:
       waypoint_name: "${msg.data}"
     description: "到点后 POST 到控制中心（对应原 fastapi_robot.py waypoint_reached_callback）"
 
-  - ros_sub: arm_action_result
+  - ros_sub: manipulation/result
     msg_type: std_msgs/String
     http_post: "${control_url}/robot_reached"
     payload:

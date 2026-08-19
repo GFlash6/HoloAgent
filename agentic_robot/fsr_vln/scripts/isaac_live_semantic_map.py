@@ -114,6 +114,43 @@ def write_horizon_frame(
             f"{qx:.9f} {qy:.9f} {qz:.9f} {qw:.9f}\n")
 
 
+def write_mask_overlay(
+        output: Path,
+        rgb: np.ndarray,
+        instance_ids: list[int],
+        binary_maps: torch.Tensor) -> list[int]:
+    """Save the actual SAM3 masks over the captured Isaac RGB frame."""
+    if binary_maps is None or len(instance_ids) != binary_maps.shape[0]:
+        raise RuntimeError("SAM3 masks and tracked instance ids do not match")
+    overlay = rgb.copy()
+    counts = []
+    for index, instance_id in enumerate(instance_ids):
+        mask = binary_maps[index].detach().cpu().numpy().astype(bool)
+        if mask.shape != rgb.shape[:2] or not mask.any():
+            raise RuntimeError(f"invalid SAM3 mask for instance {instance_id}")
+        counts.append(int(mask.sum()))
+        color = np.array(cv2.cvtColor(
+            np.uint8([[[(instance_id * 47) % 180, 220, 245]]]),
+            cv2.COLOR_HSV2RGB)[0, 0])
+        overlay[mask] = (0.55 * color + 0.45 * overlay[mask]).astype(np.uint8)
+        ys, xs = np.nonzero(mask)
+        cv2.putText(
+            overlay,
+            f"id={instance_id}",
+            (int(np.median(xs)), int(np.median(ys))),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
+    if not cv2.imwrite(
+            str(output / "object_masks_overlay.png"),
+            cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR)):
+        raise OSError("Failed to save the SAM3 object mask overlay")
+    return counts
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
@@ -174,11 +211,13 @@ def main() -> int:
     mapper.map(frame, c2w_tensor)
     detector = ObjDetectTrack(
         config["semantic"], None, "isaaclab", None, intrinsics, device=device)
-    updated_ids, tracked_ids, _ = detector.detect_and_track_objects(
+    updated_ids, tracked_ids, binary_maps = detector.detect_and_track_objects(
         [0, rgb, depth, ()], mapper.get_map(), c2w_tensor)
     if updated_ids is None or not tracked_ids:
         raise RuntimeError("SAM3/OVO produced no tracked 3D instances")
     mapper.update_pcd_obj_ids(updated_ids)
+    mask_pixel_counts = write_mask_overlay(
+        args.output, rgb, [int(value) for value in tracked_ids], binary_maps)
     detector.complete_semantic_info()
     features = detector.get_objs_clips()
     if features.shape != (len(detector.objects), 1152):
@@ -206,6 +245,7 @@ def main() -> int:
         "prompts": args.prompt,
         "map_points": int(mapper.get_map()[0].shape[0]),
         "instance_ids": [int(value) for value in detector.objects],
+        "mask_pixel_counts": mask_pixel_counts,
         "feature_shape": list(features.shape),
         "feature_norms": feature_norms.cpu().tolist(),
     }

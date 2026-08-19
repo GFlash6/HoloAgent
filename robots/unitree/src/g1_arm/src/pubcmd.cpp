@@ -13,7 +13,8 @@ int main(int argc, char * argv[])
 {
     rclcpp::init(argc, argv);
     auto node = std::make_shared<rclcpp::Node>("g1_arm_action_executor");
-    auto result_pub = node->create_publisher<std_msgs::msg::String>("arm_action_result", 10);
+    auto result_pub = node->create_publisher<std_msgs::msg::String>("manipulation/result", 10);
+    auto legacy_result_pub = node->create_publisher<std_msgs::msg::String>("arm_action_result", 10);
 
     unitree::robot::ChannelFactory::Instance()->Init(0, "eth0");
 
@@ -90,6 +91,7 @@ int main(int argc, char * argv[])
                     std::to_string(ret != 0 ? ret : release_ret);
             }
             result_pub->publish(result);
+            legacy_result_pub->publish(result);
             rclcpp::spin_some(node);
 
         } else {

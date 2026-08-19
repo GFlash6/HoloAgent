@@ -20,7 +20,7 @@ class RelativeNavNode(Node):
         # 订阅相对导航命令 (格式: "forward,left,degrees")
         self.relative_sub = self.create_subscription(
             String,
-            '/relative_nav',
+            'relative_nav',
             self.relative_nav_callback,
             10
         )
@@ -28,13 +28,13 @@ class RelativeNavNode(Node):
         # 发布绝对目标位姿
         self.goal_pub = self.create_publisher(
             PoseStamped,
-            '/object_pose',
+            'navigation/goal_pose',
             10
         )
 
         self.get_logger().info('Relative navigation node initialized')
-        self.get_logger().info('Subscribing to: /relative_nav')
-        self.get_logger().info('Publishing to: /object_pose')
+        self.get_logger().info('Subscribing to: relative_nav')
+        self.get_logger().info('Publishing to: navigation/goal_pose')
 
     def get_current_pose(self):
         """获取机器人当前位姿 (base_link相对于map)"""
@@ -151,8 +151,12 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        try:
+            node.destroy_node()
+        except KeyboardInterrupt:
+            pass
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

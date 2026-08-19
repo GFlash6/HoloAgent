@@ -1,0 +1,82 @@
+project_name: holoagent_isaac_semantic_mapping
+checkpoint_path: null
+use_wandb: false
+device: cuda
+frame_limit: -1
+seed: 0
+
+slam:
+  config_path: configs/slam
+  slam_module: vanilla
+  use_viewer: false
+  close_loops: false
+
+vis:
+  stream: false
+  show_stream: false
+
+mapping:
+  map_every: 2
+
+tracking:
+  track_every: 1
+
+topic:
+  rgb_topic: sensors/front/rgb
+  depth_topic: sensors/front/depth
+  camera_info_topic: sensors/front/camera_info
+  world_frame: map
+  sync_slop: 0.08
+  sync_queue_size: 30
+
+ros:
+  max_queue: 120
+  rgb_qos_depth: 10
+  depth_qos_depth: 10
+  camera_info_qos_depth: 10
+  publish_keyframe_pcd: true
+  keyframe_pcd_frame_id: map
+  publish_global_pcd: false
+  query_server_enabled: true
+  query_server_host: 127.0.0.1
+  query_server_port: 8121
+  query_min_score: 0.01
+  query_min_margin: 0.001
+
+pose_post_transform:
+  - [1, 0, 0, 0]
+  - [0, 1, 0, 0]
+  - [0, 0, 1, 0]
+  - [0, 0, 0, 1]
+
+semantic:
+  segment_every: 20
+  use_gt_masks: false
+  use_gt_clips: false
+  match_distance_th: 0.05
+  track_th: 100
+  depth_filter: true
+  log: true
+  use_ram_groundingdino_sam2: false
+  sam:
+    precomputed: false
+    multi_crop: true
+    mask_res: 384
+    sam_version: "3"
+    sam_ckpt_path: /home/ubuntu/.cache/modelscope/models/facebook--sam3/snapshots/master/sam3.pt
+    sam_prompts: [yellow plastic crate, blue plastic crate, packing table]
+    confidence_threshold: 0.5
+    min_mask_region_area: 100
+    nms_iou_th: 0.8
+    nms_score_th: 0.25
+    nms_inner_th: 0.5
+    masks_base_path: data/working/masks/isaac_sam3
+  clip:
+    use_half: true
+    embed_type: fixed_weights
+    model_card: SigLIP-384
+    model_path: /home/ubuntu/.cache/modelscope/models/timm--ViT-SO400M-14-SigLIP-384/snapshots/master
+    k_top_views: 10
+  kf_queue_delay: 0
+  min_points_th: 10
+  min_track_frames_th: 1
