@@ -15,6 +15,7 @@
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
+  <depend>holoagent_interfaces</depend>
   <depend>nav2_simple_commander</depend>
   
 

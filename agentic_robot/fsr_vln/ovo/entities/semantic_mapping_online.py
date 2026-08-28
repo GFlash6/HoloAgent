@@ -474,7 +474,8 @@ class SemanticMapping(Node):  # 修复拼写错误
         if self.processing_error is not None:
             raise RuntimeError("Semantic mapping frame processor failed") from self.processing_error
 
-    def query_live_object(self, query: str) -> Dict[str, Any]:
+    def query_live_object(
+            self, query: str, *, apply_thresholds: bool = True) -> Dict[str, Any]:
         """Return the best current OVO instance and its map-frame centroid."""
         query = query.strip()
         if not query:
@@ -491,11 +492,15 @@ class SemanticMapping(Node):  # 修复拼写错误
             second_score = float(scores[int(order[1])]) if len(order) > 1 else float("-inf")
             min_score = float(self.config.get("ros", {}).get("query_min_score", 0.1))
             min_margin = float(self.config.get("ros", {}).get("query_min_margin", 0.03))
-            if not np.isfinite(best_score) or best_score < min_score:
+            passes_score = np.isfinite(best_score) and best_score >= min_score
+            margin = (
+                best_score - second_score if np.isfinite(second_score) else None)
+            passes_margin = margin is None or margin >= min_margin
+            if apply_thresholds and not passes_score:
                 raise LookupError(f"best score {best_score:.4f} is below {min_score:.4f}")
-            if np.isfinite(second_score) and best_score - second_score < min_margin:
+            if apply_thresholds and not passes_margin:
                 raise RuntimeError(
-                    f"ambiguous result: margin {best_score - second_score:.4f} is below {min_margin:.4f}")
+                    f"ambiguous result: margin {margin:.4f} is below {min_margin:.4f}")
 
             object_id = object_ids[best_index]
             pcd, _, pcd_object_ids = self.slam_backbone.get_map()
@@ -512,9 +517,14 @@ class SemanticMapping(Node):  # 修复拼写错误
         return {
             "status": "FOUND",
             "object_query": query,
+            "object_id": str(object_id),
             "online_object_id": int(object_id),
             "score": best_score,
             "second_score": second_score if np.isfinite(second_score) else None,
+            "score_margin": margin,
+            "passes_backend_threshold": passes_score and passes_margin,
+            "backend_min_score": min_score,
+            "backend_min_margin": min_margin,
             "center_map": center.tolist(),
             "observation_count": len(obj.kfs_ids),
             "last_frame_id": max(obj.kfs_ids) if obj.kfs_ids else None,
@@ -530,13 +540,16 @@ class SemanticMapping(Node):  # 修复拼写错误
 
         class QueryHandler(BaseHTTPRequestHandler):
             def do_POST(self):
-                if self.path != "/query":
+                if self.path not in {"/query", "/evidence"}:
                     self.send_error(404)
                     return
                 try:
                     length = int(self.headers.get("Content-Length", "0"))
                     payload = json.loads(self.rfile.read(length) or b"{}")
-                    result = node.query_live_object(str(payload.get("object_query", "")))
+                    result = node.query_live_object(
+                        str(payload.get("object_query", "")),
+                        apply_thresholds=self.path == "/query",
+                    )
                     body, status = json.dumps(result).encode("utf-8"), 200
                 except ValueError as exc:
                     body, status = json.dumps({"detail": str(exc)}).encode("utf-8"), 400

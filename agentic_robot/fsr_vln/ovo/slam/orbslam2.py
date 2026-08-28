@@ -78,6 +78,9 @@ class WrapperORBSLAM2(VanillaMapper):
             frame_id = frame_data[0]
             first_p_idx = self.pcd_ids.shape[0]
             super().map(frame_data, c2w)
+            # For ORB-SLAM this flag remains reserved for loop-closure/GBA
+            # rewrites below; ordinary keyframe appends need no reconciliation.
+            self.map_updated = False
             last_p_idx = self.pcd_ids.shape[0]
             # Assumes pcd is not pruned outside of self._update_map
             self.kfs[frame_id] = {

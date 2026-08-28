@@ -20,6 +20,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.actions import IncludeLaunchDescription
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -29,33 +30,16 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    use_sim_time = LaunchConfiguration('use_sim_time', default='true')
-    map_dir = LaunchConfiguration(
-        'map',
-        # default=os.path.join(
-        #    get_package_share_directory('g1_navigation2'),
-        #    'map',
-        #    'grid_map.yaml'))
-        # default=os.path.join('/workspace/1014_demo_map/grid_map.yaml')
-        # hts-demo
-        # default=os.path.join('/workspace/hts_demo_maps/ic1f_indoor/map/grid_map.yaml')
-        # default=os.path.join('/workspace/hts_demo_maps/ic7f_map/map/grid_map.yaml')
-        # default=os.path.join('/workspace/hts_demo_maps/ic3f_map/map/grid_map.yaml')
-        # default=os.path.join('/workspace/hts_demo_maps/ic1f_outdoor/map/grid_map.yaml')
-        # default=os.path.join('/workspace/hts_demo_maps/ic5f_map/map/grid_map.yaml')
-        # default=os.path.join('/workspace/hts_demo_maps/nianhui_map/map/grid_map/grid_map.yaml')
-        default=os.path.join(
-            '/workspace/hts_demo_maps/ic4f_demo_map/map/grid_map/grid_map.yaml')
-        # default=os.path.join('/workspace/hts_demo_maps/ic3f_map/map/grid_map.yaml')
-    )
+    use_sim_time = LaunchConfiguration('use_sim_time')
+    online_mapping = LaunchConfiguration('online_mapping')
+    use_rviz = LaunchConfiguration('use_rviz')
+    map_dir = LaunchConfiguration('map')
+    default_map = '/workspace/hts_demo_maps/ic4f_demo_map/map/grid_map/grid_map.yaml'
 
     param_file_name = 'g1.yaml'
-    param_dir = LaunchConfiguration(
-        'params_file',
-        default=os.path.join(
-            get_package_share_directory('nav_bringup'),
-            'param',
-            param_file_name))
+    param_dir = LaunchConfiguration('params_file')
+    default_params = os.path.join(
+        get_package_share_directory('nav_bringup'), 'param', param_file_name)
 
     nav2_launch_file_dir = os.path.join(
         get_package_share_directory('nav2_bringup'), 'launch')
@@ -68,12 +52,12 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'map',
-            default_value=map_dir,
+            default_value=default_map,
             description='Full path to map file to load'),
 
         DeclareLaunchArgument(
             'params_file',
-            default_value=param_dir,
+            default_value=default_params,
             description='Full path to param file to load'),
 
         DeclareLaunchArgument(
@@ -81,16 +65,37 @@ def generate_launch_description():
             default_value='true',
             description='Use simulation (Gazebo) clock if true'),
 
+        DeclareLaunchArgument(
+            'online_mapping',
+            default_value='false',
+            description='Consume a live /map instead of starting map_server'),
+
+        DeclareLaunchArgument(
+            'use_rviz',
+            default_value='false',
+            description='Start RViz'),
+
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 [nav2_launch_file_dir, '/bringup_launch.py']),
+            condition=UnlessCondition(online_mapping),
             launch_arguments={
                 'map': map_dir,
                 'use_sim_time': use_sim_time,
                 'params_file': param_dir}.items(),
         ),
 
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                [nav2_launch_file_dir, '/navigation_launch.py']),
+            condition=IfCondition(online_mapping),
+            launch_arguments={
+                'use_sim_time': use_sim_time,
+                'params_file': param_dir}.items(),
+        ),
+
         Node(
+            condition=IfCondition(use_rviz),
             package='rviz2',
             executable='rviz2',
             name='rviz2',

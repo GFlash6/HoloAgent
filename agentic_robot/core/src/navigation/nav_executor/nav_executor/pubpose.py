@@ -29,6 +29,7 @@ import pathlib
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
+from holoagent_interfaces.msg import NavigationEvidence
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 from std_msgs.msg import Empty, String
 import math
@@ -160,6 +161,8 @@ class WaypointNavigator(Node):
             String, 'navigation/semantic/coarse_status', 10)
         self.arm_signal_pub = self.create_publisher(
             String, 'manipulation/command', 10)
+        self.navigation_evidence_pub = self.create_publisher(
+            NavigationEvidence, 'navigation/evidence', 10)
 
         # ---------- nav2 ----------
         self.navigator = BasicNavigator()
@@ -170,6 +173,7 @@ class WaypointNavigator(Node):
         self.navigation_active = False
         self.recoveries = 0
         self.single_pose_status_pub = self.goal_status_pub
+        self.single_pose_phase = ""
 
         # Expose registry as ROS parameters (~/signals/<name>/*)
         self._declare_registry_params()
@@ -222,8 +226,13 @@ class WaypointNavigator(Node):
             return
         self.navigation_active = True
         self.single_pose_status_pub = status_publisher
+        self.single_pose_phase = (
+            "coarse" if status_publisher == self.semantic_approach_status_pub
+            else "fine"
+        )
         self.recoveries = 0
         self.navigator.goToPose(msg)
+        self._publish_navigation_evidence("started")
         self.navigation_timer = self.create_timer(
             0.5, self.check_navigation_status2)
 
@@ -234,6 +243,25 @@ class WaypointNavigator(Node):
         if self.single_pose_status_pub == self.goal_status_pub:
             self.waypoint_reached_pub.publish(msg)
         self.get_logger().info(f"Published single-pose status: {status}")
+
+    @staticmethod
+    def _duration_seconds(duration):
+        return float(duration.sec) + float(duration.nanosec) / 1e9
+
+    def _publish_navigation_evidence(self, state, feedback=None):
+        message = NavigationEvidence()
+        message.header.stamp = self.get_clock().now().to_msg()
+        message.header.frame_id = "map"
+        message.phase = self.single_pose_phase
+        message.state = state
+        if feedback is not None:
+            message.distance_remaining = float(feedback.distance_remaining)
+            message.navigation_time_sec = self._duration_seconds(
+                feedback.navigation_time)
+            message.estimated_time_remaining_sec = self._duration_seconds(
+                feedback.estimated_time_remaining)
+            message.number_of_recoveries = int(feedback.number_of_recoveries)
+        self.navigation_evidence_pub.publish(message)
 
     # ------------------------------------------------------------------
     # named signal callback — registry-first, fallback to hardcoded
@@ -472,10 +500,16 @@ class WaypointNavigator(Node):
         """单 Pose 目标（来自 object_pose）的状态轮询，支持 stuck 检测。"""
         if not self.navigator.isTaskComplete():
             feedback = self.navigator.getFeedback()
+            if feedback:
+                self._publish_navigation_evidence("progress", feedback)
             if feedback and feedback.number_of_recoveries > self.recoveries + 2:
                 self.get_logger().info("Navigation stuck!")
                 self.recoveries = feedback.number_of_recoveries
-                self._publish_single_pose_status("struck")
+                self.navigator.cancelTask()
+                self._publish_single_pose_status("nav_failed")
+                self._publish_navigation_evidence("nav_failed", feedback)
+                self.navigation_active = False
+                self.destroy_timer(self.navigation_timer)
             return
 
         result = self.navigator.getResult()
@@ -483,11 +517,13 @@ class WaypointNavigator(Node):
             wp_name = "nav_finish"
             self._publish_single_pose_status(wp_name)
             self.get_logger().info("Navigation to pose completed.")
+            self._publish_navigation_evidence("succeeded")
         else:
             self.get_logger().error(f"Navigation to pose failed: {result}")
             status = ("nav_canceled" if result == TaskResult.CANCELED
                       else "nav_failed")
             self._publish_single_pose_status(status)
+            self._publish_navigation_evidence(status)
         self.navigation_active = False
         self.destroy_timer(self.navigation_timer)
 

@@ -6,6 +6,12 @@ bool found
 string object_id
 geometry_msgs/PointStamped center
 float32 score
+bool has_second_score
+float32 second_score
+bool passes_backend_threshold
+float32 backend_min_score
+bool has_backend_min_margin
+float32 backend_min_margin
 uint32 observation_count
 builtin_interfaces/Time source_stamp
 string detail

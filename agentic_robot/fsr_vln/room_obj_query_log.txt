@@ -1,0 +1,77 @@
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic bin -- 1, warehouse, yellow plastic bin
+query: navigate to yellow storage box -- 1, warehouse, yellow storage box
+query: navigate to 黄色塑料料箱 -- 1, warehouse, 黄色塑料料箱
+query: navigate to 蓝色塑料料箱 -- 1, warehouse, 蓝色塑料料箱
+query: navigate to blue plastic crate -- 1, warehouse, blue plastic crate
+query: navigate to packing table -- 1, warehouse, packing table
+query: navigate to work table -- 1, warehouse, work table
+query: navigate to purple grand piano -- 1, warehouse, purple grand piano
+query: navigate to red fire extinguisher -- 1, warehouse, red fire extinguisher
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic bin -- 1, warehouse, yellow plastic bin
+query: navigate to blue plastic crate -- 1, warehouse, blue plastic crate
+query: navigate to packing table -- 1, warehouse, packing table
+query: navigate to work table -- 1, warehouse, work table
+query: navigate to 黄色塑料料箱 -- 1, warehouse, 黄色塑料料箱
+query: navigate to 蓝色塑料料箱 -- 1, warehouse, 蓝色塑料料箱
+query: navigate to purple grand piano -- 1, warehouse, purple grand piano
+query: navigate to red fire extinguisher -- 1, warehouse, red fire extinguisher
+query: navigate to yellow plastic bin -- 1, warehouse, yellow plastic bin
+query: navigate to yellow plastic bin -- 1, warehouse, yellow plastic bin
+query: navigate to yellow plastic bin -- 1, warehouse, yellow plastic bin
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic bin -- 1, warehouse, yellow plastic bin
+query: navigate to yellow storage box -- 1, warehouse, yellow storage box
+query: navigate to blue plastic crate -- 1, warehouse, blue plastic crate
+query: navigate to blue plastic bin -- 1, warehouse, blue plastic bin
+query: navigate to packing table -- 1, warehouse, packing table
+query: navigate to work table -- 1, warehouse, work table
+query: navigate to 黄色塑料料箱 -- 1, warehouse, 黄色塑料料箱
+query: navigate to 蓝色塑料料箱 -- 1, warehouse, 蓝色塑料料箱
+query: navigate to purple grand piano -- 1, warehouse, purple grand piano
+query: navigate to red fire extinguisher -- 1, warehouse, red fire extinguisher
+query: navigate to purple grand piano -- 1, warehouse, purple grand piano
+query: navigate to yellow plastic bin -- 1, warehouse, yellow plastic bin
+query: navigate to yellow plastic bin -- 1, warehouse, yellow plastic bin
+query: navigate to yellow plastic bin -- 1, warehouse, yellow plastic bin
+query: navigate to yellow plastic bin -- 1, warehouse, yellow plastic bin
+query: navigate to yellow plastic bin -- 1, warehouse, yellow plastic bin
+query: navigate to purple grand piano -- 1, warehouse, purple grand piano
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to purple grand piano -- 1, warehouse, purple grand piano
+query: navigate to purple grand piano -- 1, warehouse, purple grand piano
+query: navigate to purple grand piano -- 1, warehouse, purple grand piano
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to purple piano -- 1, warehouse, purple piano
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to purple piano -- 1, warehouse, purple piano
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to purple grand piano -- 1, warehouse, purple grand piano
+query: navigate to purple grand piano -- 1, warehouse, purple grand piano
+query: navigate to blue plastic crate -- 1, warehouse, blue plastic crate
+query: navigate to packing table -- 1, warehouse, packing table
+query: navigate to green sofa -- 1, warehouse, green sofa
+query: navigate to red fire extinguisher -- 1, warehouse, red fire extinguisher
+query: navigate to packing table -- 1, warehouse, packing table
+query: navigate to packing table -- 1, warehouse, packing table
+query: navigate to packing table -- 1, warehouse, packing table
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to leftmost yellow plastic crate -- 1, warehouse, leftmost yellow plastic crate
+query: navigate to leftmost yellow plastic crate -- 1, warehouse, leftmost yellow plastic crate
+query: navigate to leftmost yellow plastic crate -- 1, warehouse, leftmost yellow plastic crate
+query: navigate to leftmost yellow plastic crate -- 1, warehouse, leftmost yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate
+query: navigate to yellow plastic crate -- 1, warehouse, yellow plastic crate

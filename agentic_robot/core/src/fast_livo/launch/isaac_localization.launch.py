@@ -16,6 +16,7 @@ def generate_launch_description():
     camera_params = LaunchConfiguration("camera_params")
     relo_params = LaunchConfiguration("relo_params")
     prior_map = LaunchConfiguration("prior_map")
+    localization_status_topic = LaunchConfiguration("localization_status_topic")
 
     return LaunchDescription(
         [
@@ -48,6 +49,11 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "prior_map",
                 description="Directory containing the prepared relocation map",
+            ),
+            DeclareLaunchArgument(
+                "localization_status_topic",
+                default_value="localization/status",
+                description="LocalizationStatus output; remap only for explicit fault tests",
             ),
             Node(
                 package="fast_livo",
@@ -93,6 +99,7 @@ def generate_launch_description():
                 package="localization_monitor",
                 executable="localization_monitor_node",
                 parameters=[{"use_sim_time": True}],
+                remappings=[("localization/status", localization_status_topic)],
                 output="screen",
             ),
         ]

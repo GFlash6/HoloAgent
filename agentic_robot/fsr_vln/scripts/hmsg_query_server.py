@@ -130,27 +130,35 @@ def create_app(args) -> FastAPI:
             "sim_to_map": str(args.sim_to_map),
         }
 
-    @app.post("/query")
-    def query(request: QueryRequest):
+    def query_result(request: QueryRequest, apply_threshold: bool):
         object_query = request.object_query.strip()
         if not object_query:
             raise HTTPException(status_code=400, detail="object_query is empty")
 
         result = client.query(
             f"navigate to {object_query}",
-            top_k=1,
+            top_k=2,
             use_gpt=False,
             parsed_query=("1", args.room_name, object_query))
         if not result.targets:
             raise HTTPException(status_code=404, detail="HMSG found no object")
         scores = result.raw_metrics.get("object_scores", [])
         score = float(scores[0]) if len(scores) else float("nan")
-        if not math.isfinite(score) or score < args.min_score:
+        second_score = float(scores[1]) if len(scores) > 1 else None
+        passes_threshold = math.isfinite(score) and score >= args.min_score
+        if apply_threshold and not passes_threshold:
             raise HTTPException(
                 status_code=404,
                 detail=f"HMSG similarity {score:.4f} is below {args.min_score:.4f}")
 
         target = result.targets[0]
+        source_object = next(
+            (obj for obj in client.graph.objects
+             if str(obj.object_id) == target.object_id),
+            None,
+        )
+        observation_count = max(
+            1, len(getattr(source_object, "view_ids", [])))
         center_sim = np.asarray(target.center_map, dtype=np.float64)
         anchor = anchor_store.get(target.object_id)
         center_map = (
@@ -161,16 +169,36 @@ def create_app(args) -> FastAPI:
         if not np.isfinite(center_map).all():
             raise HTTPException(status_code=500, detail="non-finite map target")
         return {
+            "status": "FOUND",
             "object_query": object_query,
             "object_id": target.object_id,
             "score": score,
+            "second_score": second_score,
+            "passes_backend_threshold": passes_threshold,
+            "backend_min_score": args.min_score,
+            "candidates": [
+                {"object_id": candidate.object_id, "score": float(candidate_score)}
+                for candidate, candidate_score in zip(result.targets, scores)
+                if math.isfinite(float(candidate_score))
+            ],
             "center_sim": center_sim.tolist(),
             "center_map": center_map.tolist(),
             "center_source": "persistent_refinement" if anchor is not None else "hmsg",
             "anchor_updated_at_ms": None if anchor is None else anchor["updated_at_ms"],
             "alignment_source": str(args.sim_to_map),
             "graph_source_timestamp_ms": evidence["source_timestamp_ms"],
+            "source_timestamp_ms": evidence["source_timestamp_ms"],
+            "observation_count": observation_count,
+            "frame_id": "map",
         }
+
+    @app.post("/query")
+    def query(request: QueryRequest):
+        return query_result(request, apply_threshold=True)
+
+    @app.post("/evidence")
+    def raw_evidence(request: QueryRequest):
+        return query_result(request, apply_threshold=False)
 
     @app.post("/anchors/update")
     def update_anchor(request: AnchorUpdateRequest):

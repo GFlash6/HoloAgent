@@ -1546,7 +1546,7 @@ bool LIVMapper::handleLIO() {
     *pcl_body_wait_pub = *laserCloudFullRes;
   }
   if (!img_en) publish_frame_lidar(pubLaserUndistortCloud);
-  // if (!img_en) publish_frame_world(pubLaserCloudFullRes, vio_manager);
+  if (!img_en) publish_frame_world(pubLaserCloudFullRes, vio_manager);
   PointCloudXYZI().swap(*pcl_wait_pub);
   PointCloudXYZRGB().swap(*pcl_wait_save);
   PointCloudXYZI().swap(*pcl_wait_save_intensity);
@@ -2968,10 +2968,22 @@ void LIVMapper::publish_img_depth(const VizSnapshot &snap) {
 void LIVMapper::publish_frame_lidar(
     const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
         &pubLaserUndistortCloud){
+  PointCloudXYZI cloud_body;
+  cloud_body.resize(pcl_body_wait_pub->size());
+  for (size_t i = 0; i < pcl_body_wait_pub->size(); ++i) {
+    const auto &point_lidar = pcl_body_wait_pub->points[i];
+    const V3D point_body = extR * V3D(point_lidar.x, point_lidar.y,
+                                     point_lidar.z) + extT;
+    auto &point = cloud_body.points[i];
+    point.x = point_body.x();
+    point.y = point_body.y();
+    point.z = point_body.z();
+    point.intensity = point_lidar.intensity;
+  }
   sensor_msgs::msg::PointCloud2 laserCloudmsg;
-  pcl::toROSMsg(*pcl_body_wait_pub, laserCloudmsg);
+  pcl::toROSMsg(cloud_body, laserCloudmsg);
   laserCloudmsg.header.stamp = rclcpp::Time(last_timestamp_lidar * 1e9);
-  laserCloudmsg.header.frame_id = "camera_init";
+  laserCloudmsg.header.frame_id = "base_link";
   pubLaserUndistortCloud->publish(laserCloudmsg);
 }
 void LIVMapper::publish_frame_world(

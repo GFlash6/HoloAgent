@@ -9,6 +9,7 @@ find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/LocalizationStatus.msg"
+  "msg/NavigationEvidence.msg"
   "srv/QueryObject.srv"
   "srv/UpdateObjectAnchor.srv"
   "action/NavigateToObject.action"

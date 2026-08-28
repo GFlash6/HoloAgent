@@ -1,0 +1,7 @@
+std_msgs/Header header
+string phase
+string state
+float32 distance_remaining
+float32 navigation_time_sec
+float32 estimated_time_remaining_sec
+uint32 number_of_recoveries

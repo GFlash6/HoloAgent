@@ -122,6 +122,10 @@ class VanillaMapper():
         self.kfs[frame_id] = {
             "id": frame_id, "pcd_idxs": (
                 first_p_idx, last_p_idx)}
+        # Notify the semantic layer that new geometry is available.  The
+        # consumer clears this flag after reconciling instance IDs.  Vanilla
+        # mapping is append-only, so this does not prune or bound the map.
+        self.map_updated = True
 
     def get_c2w(self, frame_id: int) -> torch.Tensor:
         c2w = self.estimated_c2ws.get(frame_id, None)

@@ -56,6 +56,12 @@ semantic:
   match_distance_th: 0.05
   track_th: 100
   depth_filter: true
+  # Cross-view duplicate fusion: visual box/mask descriptor + depth-derived
+  # world-space centroid and 3D bounding box. No object-count or age limit.
+  fusion:
+    centroid_distance_th: 0.35
+    bbox_gap_th: 0.15
+    visual_similarity_th: 0.90
   log: true
   use_ram_groundingdino_sam2: false
   sam:

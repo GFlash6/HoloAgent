@@ -664,6 +664,7 @@ class ObjDetectTrack:
         # 0. clean the queue
         self.complete_semantic_info()
         points_3d, points_ids, points_ins_ids = map_data
+        fusion_config = self.config.get("fusion", {})
 
         # 1. remove 3D instances that are not in pcd_obj_ids, despite some
         # instances having been detected with > than 100 points, the deletion
@@ -689,7 +690,16 @@ class ObjDetectTrack:
             for instance2 in objects_list[i + 1:]:
                 if instance2.id in fused_objects:
                     continue
-                elif instance_utils.same_instance(instance1, instance2, map_data):
+                elif instance_utils.same_instance(
+                        instance1,
+                        instance2,
+                        map_data,
+                        th_centroid=fusion_config.get(
+                            "centroid_distance_th", 0.35),
+                        th_cossim=fusion_config.get(
+                            "visual_similarity_th", 0.9),
+                        th_bbox_gap=fusion_config.get(
+                            "bbox_gap_th", 0.15)):
                     instance1, points_ins_ids = instance_utils.fuse_instances(
                         instance1, instance2, map_data)
                     fused_objects[instance2.id] = instance1.id
